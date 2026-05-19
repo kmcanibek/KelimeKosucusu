@@ -244,19 +244,27 @@
   text-shadow:0 0 20px currentColor;
 "></div>
 
-<!-- Dokunmatik bölge ipucu (oyun başlayınca görünür) -->
-<div id="touch-zones" style="
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  pointer-events:none; z-index:5; display:none;
-">
-  <!-- Çizgiler: yatay orta + dikey orta -->
-  <div style="position:absolute;top:50%;left:0;width:100%;height:1px;background:rgba(255,255,255,0.06);"></div>
-  <div style="position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(255,255,255,0.06);"></div>
-  <!-- Köşe etiketleri -->
-  <div style="position:absolute;top:12px;left:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;">⚡ Sol + Hızlan</div>
-  <div style="position:absolute;top:12px;right:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;text-align:right;">⚡ Sağ + Hızlan</div>
-  <div style="position:absolute;bottom:70px;left:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;">🐢 Sol + Yavaş</div>
-  <div style="position:absolute;bottom:70px;right:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;text-align:right;">🐢 Sağ + Yavaş</div>
+<!-- Hız butonları — oyun sırasında görünür -->
+<div id="speed-btns" style="display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  z-index:20; display:none; gap:16px; flex-direction:row; align-items:center;">
+  <button id="btn-slow" style="
+    width:72px; height:72px; border-radius:50%; border:none;
+    background:rgba(255,170,0,0.18); border:2px solid rgba(255,170,0,0.45);
+    color:#ffaa00; font-size:28px; cursor:pointer;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.15s, transform 0.1s;
+    touch-action:none; user-select:none;
+  ">🐢</button>
+  <button id="btn-fast" style="
+    width:72px; height:72px; border-radius:50%; border:none;
+    background:rgba(0,255,200,0.18); border:2px solid rgba(0,255,200,0.45);
+    color:#00ffcc; font-size:28px; cursor:pointer;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.15s, transform 0.1s;
+    touch-action:none; user-select:none;
+  ">⚡</button>
 </div>
 
 <script>
@@ -1054,7 +1062,6 @@ function endGame() {
 
   hudEl.style.display = 'none';
   touchHint.style.display = 'none';
-  document.getElementById('touch-zones').style.display = 'none';
 
   // Kısa bekleme sonrası ekranı göster — donmuş hissi vermesin
   setTimeout(() => {
@@ -1076,41 +1083,14 @@ function endGame() {
 }
 
 // ---- Controls ----
-let moveDir = 0;
 const LANES = [LANE_LEFT, LANE_MID, LANE_RIGHT];
-let currentLane = 1; // 0=left, 1=mid, 2=right
+let currentLane = 1;
+let speedBoost = 0;
+const BOOST_AMOUNT = 0.12;
+const MAX_BOOST_SPEED = 0.42;
 
-// Hız modifier: oyuncu hızlanabilir/yavaşlayabilir
-let speedBoost = 0; // -1=brake, 0=normal, +1=boost
-const BOOST_AMOUNT = 0.10;
-const BRAKE_AMOUNT = 0.07;
-const MIN_SPEED = 0.03;
-const MAX_BOOST_SPEED = 0.45;
-
-function speedUp() {
-  if (gameState !== 'playing') return;
-  speedBoost = 1;
-  showSpeedHint('⚡ HIZLI!', '#00ffcc');
-}
-function slowDown() {
-  if (gameState !== 'playing') return;
-  speedBoost = -1;
-  showSpeedHint('🐢 YAVAŞ', '#ffaa00');
-}
-function resetBoost() {
-  speedBoost = 0;
-}
-
-let speedHintTimeout = null;
-function showSpeedHint(msg, color) {
-  const el = document.getElementById('speed-hint');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = color;
-  el.style.opacity = '1';
-  clearTimeout(speedHintTimeout);
-  speedHintTimeout = setTimeout(() => { el.style.opacity = '0'; }, 800);
-}
+function speedUp()   { speedBoost = 1; }
+function resetBoost(){ speedBoost = 0; }
 
 function moveLeft() {
   if (gameState !== 'playing') return;
@@ -1123,46 +1103,61 @@ function moveRight() {
   playerTargetX = LANES[currentLane];
 }
 
-// Keyboard
+// Klavye: ←/→ şerit, ↑/boşluk basılı tut = hızlan
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') moveLeft();
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
-  if (e.key === 'ArrowUp'    || e.key === 'w' || e.key === 'W') { e.preventDefault(); speedUp(); }
-  if (e.key === 'ArrowDown'  || e.key === 's' || e.key === 'S') { e.preventDefault(); slowDown(); }
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') {
+    e.preventDefault(); speedUp();
+  }
 });
 document.addEventListener('keyup', e => {
-  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' ||
-      e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') resetBoost();
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') resetBoost();
 });
 
-// Touch — 4 bölge: Sol-Üst=Sol+Hızlan, Sol-Alt=Sol+Yavaş, Sağ-Üst=Sağ+Hızlan, Sağ-Alt=Sağ+Yavaş
-// Basılı tutunca hız devam eder, bırakınca normale döner
-let activeTouches = new Set();
+// Dokunmatik: kısa dokunuş = şerit değiştir, basılı tut = hızlan
+let touchStartX = 0, touchStartTime = 0;
+const TAP_THRESHOLD_MS = 200; // bu süreden kısa = tap
+let activeTouchCount = 0;
 
 document.addEventListener('touchstart', e => {
   const tag = e.target.tagName;
   if (tag === 'BUTTON' || e.target.closest('button') || e.target.id === 'mute-btn') return;
+  if (gameState !== 'playing') return;
+  e.preventDefault();
 
-  if (gameState === 'playing') {
-    e.preventDefault();
-    for (const t of e.changedTouches) {
-      activeTouches.add(t.identifier);
-      const isRight = t.clientX >= window.innerWidth / 2;
-      const isTop   = t.clientY < window.innerHeight / 2;
-      if (isRight) moveRight(); else moveLeft();
-      if (isTop) speedUp(); else slowDown();
-    }
-  }
+  activeTouchCount = e.touches.length;
+  const t = e.changedTouches[0];
+  touchStartX = t.clientX;
+  touchStartTime = Date.now();
+
+  // Basılı tutma = hızlan (hemen başlat, tap ise touchend'de iptal olur)
+  speedUp();
 }, { passive: false });
 
 document.addEventListener('touchend', e => {
-  for (const t of e.changedTouches) activeTouches.delete(t.identifier);
-  if (activeTouches.size === 0) resetBoost();
+  const tag = e.target.tagName;
+  if (tag === 'BUTTON' || e.target.closest('button') || e.target.id === 'mute-btn') return;
+  if (gameState !== 'playing') return;
+  e.preventDefault();
+
+  const elapsed = Date.now() - touchStartTime;
+  const t = e.changedTouches[0];
+
+  // Kısa dokunuş = şerit değiştir, boost'u iptal et
+  if (elapsed < TAP_THRESHOLD_MS) {
+    resetBoost();
+    if (t.clientX < window.innerWidth / 2) moveLeft();
+    else moveRight();
+  }
+
+  activeTouchCount = e.touches.length;
+  if (activeTouchCount === 0) resetBoost();
 }, { passive: false });
 
 document.addEventListener('touchcancel', e => {
-  for (const t of e.changedTouches) activeTouches.delete(t.identifier);
-  if (activeTouches.size === 0) resetBoost();
+  activeTouchCount = 0;
+  resetBoost();
 }, { passive: false });
 
 document.addEventListener('touchmove', e => {
@@ -1207,12 +1202,11 @@ function loop(ts) {
     return;
   }
 
-  // Increase speed over time + player boost/brake
+  // Increase speed over time + player boost
   let targetSpeed = baseSpeed + correctCount * 0.0015;
   targetSpeed = Math.min(targetSpeed, 0.28);
-  if (speedBoost === 1)  targetSpeed = Math.min(targetSpeed + BOOST_AMOUNT, MAX_BOOST_SPEED);
-  if (speedBoost === -1) targetSpeed = Math.max(targetSpeed - BRAKE_AMOUNT, MIN_SPEED);
-  speed += (targetSpeed - speed) * 0.08; // smooth transition
+  if (speedBoost === 1) targetSpeed = Math.min(targetSpeed + BOOST_AMOUNT, MAX_BOOST_SPEED);
+  speed += (targetSpeed - speed) * 0.08;
 
   // Move road tiles
   roadTiles.forEach(tile => {
@@ -1342,11 +1336,10 @@ function startGame() {
   gameoverScreen.classList.add('hidden');
   hudEl.style.display = 'flex';
   touchHint.style.display = 'block';
-  touchHint.textContent = '◀▶ Sol/Sağ  |  ↑ Hızlan  ↓ Yavaşla';
+  touchHint.textContent = 'Dokun = şerit  |  Basılı tut = ⚡ hızlan';
 
   updateHUD();
   gameState = 'playing';
-  document.getElementById('touch-zones').style.display = 'block';
   startMusic();
 }
 
