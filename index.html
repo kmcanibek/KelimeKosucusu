@@ -226,12 +226,38 @@
     <div class="stat-box"><div class="stat-val" id="final-wrong" style="color:#ff4466">0</div><div class="stat-lbl">Yanlış</div></div>
   </div>
   <div id="best-score-line">🏆 En İyi: <span id="best-score-val">0</span></div>
-  <button class="btn btn-secondary" id="btn-restart">TEKRAR OYNA</button>
+  <button class="btn btn-secondary" id="btn-restart" style="position:relative;overflow:hidden;">
+    <span id="btn-restart-label">TEKRAR OYNA</span>
+    <span id="btn-restart-countdown" style="margin-left:8px;font-size:0.85em;opacity:0.85;"></span>
+    <span id="btn-restart-bar" style="position:absolute;bottom:0;left:0;height:4px;width:100%;background:rgba(255,255,255,0.35);transform-origin:left;transition:none;"></span>
+  </button>
   <button class="btn btn-primary" id="btn-menu">ANA MENÜ</button>
 </div>
 
 <div id="mute-btn">🔊</div>
 <div id="touch-hint"></div>
+<div id="speed-hint" style="
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-size:clamp(18px,5vw,32px); font-weight:900;
+  pointer-events:none; z-index:15;
+  opacity:0; transition:opacity 0.4s;
+  text-shadow:0 0 20px currentColor;
+"></div>
+
+<!-- Dokunmatik bölge ipucu (oyun başlayınca görünür) -->
+<div id="touch-zones" style="
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:5; display:none;
+">
+  <!-- Çizgiler: yatay orta + dikey orta -->
+  <div style="position:absolute;top:50%;left:0;width:100%;height:1px;background:rgba(255,255,255,0.06);"></div>
+  <div style="position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(255,255,255,0.06);"></div>
+  <!-- Köşe etiketleri -->
+  <div style="position:absolute;top:12px;left:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;">⚡ Sol + Hızlan</div>
+  <div style="position:absolute;top:12px;right:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;text-align:right;">⚡ Sağ + Hızlan</div>
+  <div style="position:absolute;bottom:70px;left:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;">🐢 Sol + Yavaş</div>
+  <div style="position:absolute;bottom:70px;right:12px;color:rgba(255,255,255,0.18);font-size:11px;pointer-events:none;text-align:right;">🐢 Sağ + Yavaş</div>
+</div>
 
 <script>
 // =====================================================================
@@ -441,29 +467,39 @@ function playTone(freq, type, duration, vol = 0.3, target) {
   } catch(e) {}
 }
 
-// ---- OYUN MÜZİĞİ ----
-// Enerjik, tekrarlayan bir synthwave loop:
-// Bas davul + hi-hat ritmi + arpegio melodi + bas çizgisi
+// ---- OYUN MÜZİĞİ — Eye of the Tiger tarzı ----
 let musicInterval = null;
 let beatStep = 0;
 
-// Nota frekansları (C3–B5 arası)
 const NOTE = {
-  C3:130.8, D3:146.8, E3:164.8, F3:174.6, G3:196, A3:220, B3:246.9,
-  C4:261.6, D4:293.7, E4:329.6, F4:349.2, G4:392, A4:440, B4:493.9,
-  C5:523.3, D5:587.3, E5:659.3, G5:784, A5:880
+  C3:130.8, D3:146.8, Eb3:155.6, E3:164.8, F3:174.6, G3:196, Ab3:207.7, A3:220, Bb3:233.1, B3:246.9,
+  C4:261.6, D4:293.7, Eb4:311.1, E4:329.6, F4:349.2, G4:392, Ab4:415.3, A4:440, Bb4:466.2, B4:493.9,
+  C5:523.3, D5:587.3, Eb5:622.3, E5:659.3, F5:698.5, G5:784, Ab5:830.6, A5:880, Bb5:932
 };
 
-// Arpegio melodisi (16 adım, tekrarlıyor)
-const MELODY = [
-  NOTE.C5, NOTE.E5, NOTE.G5, NOTE.E5,
-  NOTE.D5, NOTE.G5, NOTE.A5, NOTE.G5,
-  NOTE.C5, NOTE.E5, NOTE.G5, NOTE.A5,
-  NOTE.G5, NOTE.E5, NOTE.D5, NOTE.C5
+// Eye of the Tiger ana riff: Bum-bum-bum-BUM-bum, Bum-bum-BUM-bum
+// 32 adım, 16th note @ ~138 BPM (step = 108ms)
+const STEP_MS = 108;
+
+// Riff melodisi (0=sus)
+const RIFF = [
+  NOTE.C4, 0, NOTE.C4, NOTE.C4, 0, NOTE.Ab3, NOTE.C4, 0,
+  NOTE.Eb4, 0, 0, NOTE.D4, 0, 0, 0, 0,
+  NOTE.C4, 0, NOTE.C4, NOTE.C4, 0, NOTE.Bb3, NOTE.Ab3, 0,
+  NOTE.Bb3, 0, NOTE.Ab3, 0, NOTE.G3, 0, 0, 0
 ];
 
-// Bas çizgisi (her 4 adımda bir)
-const BASSLINE = [NOTE.C3, NOTE.G3, NOTE.A3, NOTE.F3];
+// Power chord arpejo (üst ses)
+const LEAD = [
+  0,0,0,0, NOTE.Eb5,0,NOTE.D5,0, NOTE.C5,0,0,0, NOTE.Bb4,0,NOTE.Ab4,0,
+  0,0,0,0, NOTE.Eb5,0,NOTE.D5,0, NOTE.C5,NOTE.Bb4,NOTE.Ab4,0, NOTE.G4,0,0,0
+];
+
+// Bas çizgisi
+const BASSLINE2 = [
+  NOTE.C3,0,0,0, NOTE.C3,0,0,0, NOTE.Eb3,0,0,0, NOTE.D3,0,0,0,
+  NOTE.C3,0,0,0, NOTE.C3,0,0,0, NOTE.Bb3,0,0,0, NOTE.G3,0,0,0
+];
 
 function playKick() {
   if (muted) return;
@@ -473,11 +509,11 @@ function playKick() {
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(masterGain);
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(160, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.9, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-    osc.start(); osc.stop(ctx.currentTime + 0.2);
+    osc.frequency.setValueAtTime(200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(1.0, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(); osc.stop(ctx.currentTime + 0.18);
   } catch(e) {}
 }
 
@@ -485,18 +521,18 @@ function playSnare() {
   if (muted) return;
   try {
     const ctx = getAudioCtx();
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.04));
     const src = ctx.createBufferSource();
     src.buffer = buf;
     const gain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass'; filter.frequency.value = 1800;
+    filter.type = 'highpass'; filter.frequency.value = 1200;
     src.connect(filter); filter.connect(gain); gain.connect(masterGain);
-    gain.gain.setValueAtTime(0.35, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-    src.start(); src.stop(ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    src.start(); src.stop(ctx.currentTime + 0.14);
   } catch(e) {}
 }
 
@@ -504,75 +540,100 @@ function playHiHat(open = false) {
   if (muted) return;
   try {
     const ctx = getAudioCtx();
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
     const data = buf.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
     const src = ctx.createBufferSource();
     src.buffer = buf;
     const gain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass'; filter.frequency.value = 8000;
+    filter.type = 'highpass'; filter.frequency.value = 9000;
     src.connect(filter); filter.connect(gain); gain.connect(masterGain);
-    gain.gain.setValueAtTime(open ? 0.18 : 0.1, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (open ? 0.08 : 0.03));
+    gain.gain.setValueAtTime(open ? 0.2 : 0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (open ? 0.09 : 0.03));
     src.start(); src.stop(ctx.currentTime + 0.1);
   } catch(e) {}
 }
 
-function playBass(freq) {
-  if (muted) return;
+function playRiffNote(freq, vol = 0.38) {
+  if (muted || !freq) return;
+  try {
+    const ctx = getAudioCtx();
+    // Distorted guitar: sawtooth + clip with waveshaper
+    const osc = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const ws = ctx.createWaveShaper();
+    const gain = ctx.createGain();
+    // Distortion curve
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = (Math.PI + 300) * x / (Math.PI + 300 * Math.abs(x));
+    }
+    ws.curve = curve;
+    ws.oversample = '2x';
+    osc.type = 'sawtooth'; osc.frequency.value = freq;
+    osc2.type = 'sawtooth'; osc2.frequency.value = freq * 1.005; // slight detune
+    osc.connect(ws); osc2.connect(ws);
+    ws.connect(gain); gain.connect(masterGain);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    osc.start(); osc2.start();
+    osc.stop(ctx.currentTime + 0.2); osc2.stop(ctx.currentTime + 0.2);
+  } catch(e) {}
+}
+
+function playLeadNote(freq) {
+  if (muted || !freq) return;
   try {
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(masterGain);
-    osc.type = 'sawtooth';
+    osc.type = 'square';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.28, ctx.currentTime);
+    osc.connect(gain); gain.connect(masterGain);
+    gain.gain.setValueAtTime(0.14, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
     osc.start(); osc.stop(ctx.currentTime + 0.25);
   } catch(e) {}
 }
 
-function playMelodyNote(freq) {
-  if (muted) return;
+function playBassNote(freq) {
+  if (muted || !freq) return;
   try {
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    const rev = ctx.createDelay();
-    rev.delayTime.value = 0.08;
-    osc.connect(gain);
-    gain.connect(masterGain);
-    gain.connect(rev); rev.connect(masterGain);
-    osc.type = 'triangle';
+    osc.type = 'sawtooth';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.22, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-    osc.start(); osc.stop(ctx.currentTime + 0.2);
+    osc.connect(gain); gain.connect(masterGain);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.24);
+    osc.start(); osc.stop(ctx.currentTime + 0.26);
   } catch(e) {}
 }
 
-// Her adım 125ms = 120 BPM 16th note
-const STEP_MS = 125;
-
 function musicStep() {
-  const s = beatStep % 16;
+  const s = beatStep % 32;
 
-  // Kick: 0, 8. adım
-  if (s === 0 || s === 8) playKick();
+  // Kick: 0, 16 + offbeat 8, 24
+  if (s === 0 || s === 16) playKick();
+  if (s === 10 || s === 26) playKick();
 
-  // Snare: 4, 12. adım
-  if (s === 4 || s === 12) playSnare();
+  // Snare: 8, 24
+  if (s === 8 || s === 24) playSnare();
 
-  // Hi-hat: her adım, açık her 4'te bir
-  playHiHat(s % 4 === 2);
+  // Hi-hat: every 2 steps
+  if (s % 2 === 0) playHiHat(s % 8 === 4);
 
-  // Melodi: her adım
-  playMelodyNote(MELODY[s]);
+  // Ana riff (guitar distortion)
+  playRiffNote(RIFF[s]);
 
-  // Bas: her 4 adımda bir
-  if (s % 4 === 0) playBass(BASSLINE[Math.floor(s / 4)]);
+  // Üst lead melodi
+  playLeadNote(LEAD[s]);
+
+  // Bas
+  playBassNote(BASSLINE2[s]);
 
   beatStep++;
 }
@@ -581,7 +642,6 @@ function startMusic() {
   if (musicStarted) return;
   musicStarted = true;
   beatStep = 0;
-  // AudioContext kullanıcı etkileşimi sonrası başlamalı
   try { getAudioCtx().resume(); } catch(e) {}
   musicInterval = setInterval(musicStep, STEP_MS);
 }
@@ -589,6 +649,47 @@ function startMusic() {
 function stopMusic() {
   if (musicInterval) { clearInterval(musicInterval); musicInterval = null; }
   musicStarted = false;
+}
+
+// ---- Countdown Restart ----
+let countdownTimer = null;
+
+function startCountdown() {
+  const COUNTDOWN_SEC = 5;
+  let remaining = COUNTDOWN_SEC;
+  const countEl = document.getElementById('btn-restart-countdown');
+  const barEl = document.getElementById('btn-restart-bar');
+
+  if (!countEl || !barEl) return;
+
+  countEl.textContent = `(${remaining})`;
+  barEl.style.transition = 'none';
+  barEl.style.transform = 'scaleX(1)';
+
+  // Trigger CSS transition for bar
+  requestAnimationFrame(() => {
+    barEl.style.transition = `transform ${COUNTDOWN_SEC}s linear`;
+    barEl.style.transform = 'scaleX(0)';
+  });
+
+  countdownTimer = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      restartGame();
+    } else {
+      countEl.textContent = `(${remaining})`;
+    }
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  const countEl = document.getElementById('btn-restart-countdown');
+  const barEl = document.getElementById('btn-restart-bar');
+  if (countEl) countEl.textContent = '';
+  if (barEl) { barEl.style.transition = 'none'; barEl.style.transform = 'scaleX(1)'; }
 }
 
 // Efekt sesleri
@@ -953,13 +1054,17 @@ function endGame() {
 
   hudEl.style.display = 'none';
   touchHint.style.display = 'none';
+  document.getElementById('touch-zones').style.display = 'none';
 
   // Kısa bekleme sonrası ekranı göster — donmuş hissi vermesin
   setTimeout(() => {
     gameoverScreen.classList.remove('hidden');
     gameoverScreen.style.opacity = '0';
     gameoverScreen.style.transition = 'opacity 0.5s';
-    requestAnimationFrame(() => { gameoverScreen.style.opacity = '1'; });
+    requestAnimationFrame(() => {
+      gameoverScreen.style.opacity = '1';
+      startCountdown();
+    });
   }, 600);
 
   // Oyun bitti sesi
@@ -975,6 +1080,38 @@ let moveDir = 0;
 const LANES = [LANE_LEFT, LANE_MID, LANE_RIGHT];
 let currentLane = 1; // 0=left, 1=mid, 2=right
 
+// Hız modifier: oyuncu hızlanabilir/yavaşlayabilir
+let speedBoost = 0; // -1=brake, 0=normal, +1=boost
+const BOOST_AMOUNT = 0.10;
+const BRAKE_AMOUNT = 0.07;
+const MIN_SPEED = 0.03;
+const MAX_BOOST_SPEED = 0.45;
+
+function speedUp() {
+  if (gameState !== 'playing') return;
+  speedBoost = 1;
+  showSpeedHint('⚡ HIZLI!', '#00ffcc');
+}
+function slowDown() {
+  if (gameState !== 'playing') return;
+  speedBoost = -1;
+  showSpeedHint('🐢 YAVAŞ', '#ffaa00');
+}
+function resetBoost() {
+  speedBoost = 0;
+}
+
+let speedHintTimeout = null;
+function showSpeedHint(msg, color) {
+  const el = document.getElementById('speed-hint');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color;
+  el.style.opacity = '1';
+  clearTimeout(speedHintTimeout);
+  speedHintTimeout = setTimeout(() => { el.style.opacity = '0'; }, 800);
+}
+
 function moveLeft() {
   if (gameState !== 'playing') return;
   if (currentLane > 0) currentLane--;
@@ -988,22 +1125,44 @@ function moveRight() {
 
 // Keyboard
 document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
+  if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') moveLeft();
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
+  if (e.key === 'ArrowUp'    || e.key === 'w' || e.key === 'W') { e.preventDefault(); speedUp(); }
+  if (e.key === 'ArrowDown'  || e.key === 's' || e.key === 'S') { e.preventDefault(); slowDown(); }
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' ||
+      e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') resetBoost();
 });
 
-// Touch — sadece oyun alanına uygula, butonlara değil
+// Touch — 4 bölge: Sol-Üst=Sol+Hızlan, Sol-Alt=Sol+Yavaş, Sağ-Üst=Sağ+Hızlan, Sağ-Alt=Sağ+Yavaş
+// Basılı tutunca hız devam eder, bırakınca normale döner
+let activeTouches = new Set();
+
 document.addEventListener('touchstart', e => {
-  // Butonlara ve UI elemanlarına dokunuluyorsa engelleme
   const tag = e.target.tagName;
   if (tag === 'BUTTON' || e.target.closest('button') || e.target.id === 'mute-btn') return;
 
   if (gameState === 'playing') {
     e.preventDefault();
-    const t = e.touches[0];
-    if (t.clientX < window.innerWidth / 2) moveLeft();
-    else moveRight();
+    for (const t of e.changedTouches) {
+      activeTouches.add(t.identifier);
+      const isRight = t.clientX >= window.innerWidth / 2;
+      const isTop   = t.clientY < window.innerHeight / 2;
+      if (isRight) moveRight(); else moveLeft();
+      if (isTop) speedUp(); else slowDown();
+    }
   }
+}, { passive: false });
+
+document.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+  if (activeTouches.size === 0) resetBoost();
+}, { passive: false });
+
+document.addEventListener('touchcancel', e => {
+  for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+  if (activeTouches.size === 0) resetBoost();
 }, { passive: false });
 
 document.addEventListener('touchmove', e => {
@@ -1048,9 +1207,12 @@ function loop(ts) {
     return;
   }
 
-  // Increase speed over time
-  speed = baseSpeed + correctCount * 0.0015;
-  speed = Math.min(speed, 0.28);
+  // Increase speed over time + player boost/brake
+  let targetSpeed = baseSpeed + correctCount * 0.0015;
+  targetSpeed = Math.min(targetSpeed, 0.28);
+  if (speedBoost === 1)  targetSpeed = Math.min(targetSpeed + BOOST_AMOUNT, MAX_BOOST_SPEED);
+  if (speedBoost === -1) targetSpeed = Math.max(targetSpeed - BRAKE_AMOUNT, MIN_SPEED);
+  speed += (targetSpeed - speed) * 0.08; // smooth transition
 
   // Move road tiles
   roadTiles.forEach(tile => {
@@ -1180,20 +1342,23 @@ function startGame() {
   gameoverScreen.classList.add('hidden');
   hudEl.style.display = 'flex';
   touchHint.style.display = 'block';
-  touchHint.textContent = '◀ Sol/Sağ dokun ▶';
+  touchHint.textContent = '◀▶ Sol/Sağ  |  ↑ Hızlan  ↓ Yavaşla';
 
   updateHUD();
   gameState = 'playing';
+  document.getElementById('touch-zones').style.display = 'block';
   startMusic();
 }
 
 function restartGame() {
+  stopCountdown();
   gameoverScreen.classList.add('hidden');
   stopMusic();
   startGame();
 }
 
 function showStart() {
+  stopCountdown();
   gameoverScreen.classList.add('hidden');
   stopMusic();
   startScreen.classList.remove('hidden');
