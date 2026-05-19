@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Kelime Koşusu</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #0a0a1a;
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  }
+  #canvas { display: block; width: 100%; height: 100%; }
+  #ui {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 18px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+  }
+  #score-display {
+    font-size: clamp(18px, 4vw, 28px);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff88;
+    letter-spacing: 1px;
+  }
+  #lives-display {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .heart { font-size: clamp(18px, 4vw, 26px); transition: transform 0.3s; }
+  #combo-display {
+    font-size: clamp(13px, 3vw, 20px);
+    font-weight: 800;
+    color: #ffdd00;
+    text-shadow: 0 0 15px #ffaa00;
+    min-width: 80px; text-align: center;
+  }
+  #combo-msg {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: clamp(22px, 6vw, 42px);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 20;
+    white-space: nowrap;
+  }
+  #flash {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 50;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  #screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; pointer-events: all;
+    background: linear-gradient(135deg, #0d0d2b 0%, #1a0a3a 50%, #0d1a2b 100%);
+  }
+  #screen.hidden { display: none; }
+  .screen-title {
+    font-size: clamp(36px, 10vw, 72px);
+    font-weight: 900;
+    background: linear-gradient(90deg, #00ffff, #ff00ff, #ffdd00, #00ffff);
+    background-size: 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+    text-align: center;
+    line-height: 1.1;
+    margin-bottom: 10px;
+  }
+  @keyframes shimmer { 0%{background-position:0%} 100%{background-position:300%} }
+  .screen-sub {
+    font-size: clamp(13px, 3.5vw, 20px);
+    color: #aac;
+    text-align: center;
+    max-width: 340px;
+    margin: 14px auto;
+    line-height: 1.5;
+    padding: 0 20px;
+  }
+  .btn {
+    padding: clamp(14px,3.5vw,20px) clamp(36px,8vw,60px);
+    font-size: clamp(16px, 4vw, 24px);
+    font-weight: 800;
+    border: none; border-radius: 50px;
+    cursor: pointer; pointer-events: all;
+    transition: transform 0.15s, box-shadow 0.15s;
+    letter-spacing: 1px;
+    margin: 8px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #00ccff, #9900ff);
+    color: #fff;
+    box-shadow: 0 0 30px #00ccff88, 0 6px 30px #00000088;
+  }
+  .btn-primary:active { transform: scale(0.95); }
+  .btn-secondary {
+    background: linear-gradient(135deg, #ff6600, #ff0080);
+    color: #fff;
+    box-shadow: 0 0 30px #ff660088, 0 6px 30px #00000088;
+  }
+  .btn-secondary:active { transform: scale(0.95); }
+  .stat-row {
+    display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+    margin: 14px 0;
+  }
+  .stat-box {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 12px 22px;
+    text-align: center;
+    min-width: 100px;
+  }
+  .stat-val {
+    font-size: clamp(22px, 6vw, 38px);
+    font-weight: 900;
+    color: #fff;
+  }
+  .stat-lbl {
+    font-size: clamp(10px, 2.5vw, 14px);
+    color: #99aacc;
+    margin-top: 2px;
+  }
+  #best-score-line {
+    color: #ffdd00;
+    font-size: clamp(13px, 3vw, 18px);
+    font-weight: 700;
+    margin: 6px 0;
+    text-shadow: 0 0 15px #ffaa00;
+  }
+  #mute-btn {
+    position: fixed; bottom: 20px; right: 20px;
+    width: 44px; height: 44px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    color: #fff; font-size: 20px;
+    cursor: pointer; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: all;
+  }
+  #touch-hint {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.4);
+    font-size: clamp(11px, 2.5vw, 14px);
+    pointer-events: none;
+    z-index: 10;
+    text-align: center;
+  }
+  #loading-overlay {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    background: #0a0a1a;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 20px;
+    z-index: 999;
+    color: #fff; font-size: 22px; font-weight: 700;
+  }
+  .loader {
+    width: 50px; height: 50px;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top: 4px solid #00ffff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="loader"></div>
+  <div>Kelime Koşusu yükleniyor...</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div id="hud" style="display:none">
+    <div id="score-display">0</div>
+    <div id="lives-display">
+      <span class="heart">❤️</span>
+      <span class="heart">❤️</span>
+      <span class="heart">❤️</span>
+    </div>
+    <div id="combo-display"></div>
+  </div>
+  <div id="combo-msg"></div>
+  <div id="flash"></div>
+</div>
+
+<!-- START SCREEN -->
+<div id="screen" id="start-screen">
+  <div class="screen-title">Kelime<br>Koşusu</div>
+  <div class="screen-sub">Doğru kelimenin olduğu kapıdan geç!<br>3 yanlışta oyun biter 🏃</div>
+  <button class="btn btn-primary" id="btn-start">BAŞLA</button>
+  <div class="screen-sub" style="font-size:clamp(11px,2.5vw,14px); margin-top:4px;">
+    📱 Sol/Sağ dokun &nbsp;|&nbsp; ⌨️ ← → tuşları
+  </div>
+</div>
+
+<!-- GAME OVER SCREEN (hidden initially) -->
+<div id="gameover-screen" class="hidden">
+  <div class="screen-title" style="font-size:clamp(28px,7vw,52px)">Oyun Bitti!</div>
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-val" id="final-score">0</div><div class="stat-lbl">Puan</div></div>
+    <div class="stat-box"><div class="stat-val" id="final-correct" style="color:#00ff88">0</div><div class="stat-lbl">Doğru</div></div>
+    <div class="stat-box"><div class="stat-val" id="final-wrong" style="color:#ff4466">0</div><div class="stat-lbl">Yanlış</div></div>
+  </div>
+  <div id="best-score-line">🏆 En İyi: <span id="best-score-val">0</span></div>
+  <button class="btn btn-secondary" id="btn-restart">TEKRAR OYNA</button>
+  <button class="btn btn-primary" id="btn-menu">ANA MENÜ</button>
+</div>
+
+<div id="mute-btn">🔊</div>
+<div id="touch-hint"></div>
+
+<script>
+// =====================================================================
+// KELIME LİSTESİ - Buradan kolayca düzenleyebilirsiniz
+// =====================================================================
+const WORD_PAIRS = [
+  { wrong: "Antreman", correct: "Antrenman" },
+  { wrong: "Arasıra", correct: "Ara sıra" },
+  { wrong: "Ardarda", correct: "Art arda" },
+  { wrong: "Arttırmak", correct: "Artırmak" },
+  { wrong: "Birarada", correct: "Bir arada" },
+  { wrong: "Bir çok / Bir kaç", correct: "Birçok / Birkaç" },
+  { wrong: "Birşey", correct: "Bir şey" },
+  { wrong: "Bu gün", correct: "Bugün" },
+  { wrong: "Çevrimiçi", correct: "Çevrim içi" },
+  { wrong: "Direk", correct: "Direkt" },
+  { wrong: "Döküman", correct: "Doküman" },
+  { wrong: "Elele", correct: "El ele" },
+  { wrong: "Espiri", correct: "Espri" },
+  { wrong: "Farketmek", correct: "Fark etmek" },
+  { wrong: "Haftasonu / Haftaiçi", correct: "Hafta sonu / Hafta içi" },
+  { wrong: "Haketmek", correct: "Hak etmek" },
+  { wrong: "Heralde", correct: "Herhalde" },
+  { wrong: "Herbiri", correct: "Her biri" },
+  { wrong: "Hergün", correct: "Her gün" },
+  { wrong: "Hiç bir", correct: "Hiçbir" },
+  { wrong: "Hiçkimse", correct: "Hiç kimse" },
+  { wrong: "Hoşgeldin", correct: "Hoş geldin" },
+  { wrong: "İddaa", correct: "İddia" },
+  { wrong: "İnsiyatif", correct: "İnisiyatif" },
+  { wrong: "Kareografi", correct: "Koreografi" },
+  { wrong: "Klüp", correct: "Kulüp" },
+  { wrong: "Madem ki / Oysa ki", correct: "Mademki / Oysaki" },
+  { wrong: "Madur", correct: "Mağdur" },
+  { wrong: "Makina", correct: "Makine" },
+  { wrong: "Malesef", correct: "Maalesef" },
+  { wrong: "Metod", correct: "Metot" },
+  { wrong: "Müsade", correct: "Müsaade" },
+  { wrong: "Müstehak", correct: "Müstahak" },
+  { wrong: "Mütevazi", correct: "Mütevazı" },
+  { wrong: "Orda / Burda", correct: "Orada / Burada" },
+  { wrong: "Orjinal", correct: "Orijinal" },
+  { wrong: "Pekçok / Pekaz", correct: "Pek çok / Pek az" },
+  { wrong: "Sarfetmek", correct: "Sarf etmek" },
+  { wrong: "Sohpet", correct: "Sohbet" },
+  { wrong: "Süpriz", correct: "Sürpriz" },
+  { wrong: "Şöför", correct: "Şoför" },
+  { wrong: "Tabi ki", correct: "Tabii ki" },
+  { wrong: "Terketmek", correct: "Terk etmek" },
+  { wrong: "Tesbit", correct: "Tespit" },
+  { wrong: "Traş", correct: "Tıraş" },
+  { wrong: "Türkçe'de / Türkçe'nin", correct: "Türkçede / Türkçenin" },
+  { wrong: "Vaz geçmek", correct: "Vazgeçmek" },
+  { wrong: "Yanısıra", correct: "Yanı sıra" },
+  { wrong: "Yanyana", correct: "Yan yana" }
+];
+// =====================================================================
+
+// --- Globals ---
+let THREE, renderer, scene, camera, animId;
+let gameState = 'menu'; // menu | playing | gameover
+let score = 0, lives = 3, combo = 0, correctCount = 0, wrongCount = 0;
+let bestScore = parseInt(localStorage.getItem('kk_best') || '0');
+let speed = 0.18, baseSpeed = 0.18;
+let playerX = 0, playerTargetX = 0;
+let playerY = 0, playerTargetY = 0;
+let shakeTimer = 0, shakeAmt = 0;
+let muted = false;
+let audioCtx = null;
+
+// Three.js objects
+let player, playerParts = {};
+let road, roadTiles = [];
+let gates = [];
+let particles = [];
+let bgObjects = [];
+let runCycle = 0;
+let lastWordIndex = -1;
+
+// Gate system
+const GATE_SPACING = 28;
+const GATE_WIDTH = 2.8;
+const GATE_HEIGHT = 3.5;
+let nextGateZ = -25;
+let pendingPairs = [];
+
+// Lane X positions
+const LANE_LEFT = -2.2;
+const LANE_RIGHT = 2.2;
+const LANE_MID = 0;
+
+const canvas = document.getElementById('canvas');
+const hudEl = document.getElementById('hud');
+const scoreEl = document.getElementById('score-display');
+const livesEl = document.getElementById('lives-display');
+const comboEl = document.getElementById('combo-display');
+const comboMsgEl = document.getElementById('combo-msg');
+const flashEl = document.getElementById('flash');
+const startScreen = document.getElementById('screen');
+const gameoverScreen = document.getElementById('gameover-screen');
+const touchHint = document.getElementById('touch-hint');
+
+// ---- Audio ----
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, type, duration, vol = 0.3) {
+  if (muted) return;
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(); osc.stop(ctx.currentTime + duration);
+  } catch(e){}
+}
+function playCorrect() {
+  playTone(523, 'sine', 0.12, 0.25);
+  setTimeout(() => playTone(784, 'sine', 0.18, 0.25), 80);
+}
+function playWrong() {
+  playTone(200, 'sawtooth', 0.2, 0.3);
+  setTimeout(() => playTone(150, 'sawtooth', 0.15, 0.3), 100);
+}
+function playCombo() {
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.15, 0.3), i * 80));
+}
+function toggleMute() {
+  muted = !muted;
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+}
+
+// ---- Three.js Setup ----
+function initThree() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0a0a1a, 20, 55);
+  scene.background = new THREE.Color(0x0a0a1a);
+
+  camera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 80);
+  camera.position.set(0, 3.5, 7);
+  camera.lookAt(0, 1, -8);
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'low-power' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.shadowMap.enabled = false;
+
+  buildScene();
+  setupLights();
+}
+
+function buildScene() {
+  // Road tiles (pool of 10)
+  const roadMat = new THREE.MeshPhongMaterial({ color: 0x151530, shininess: 60 });
+  for (let i = 0; i < 10; i++) {
+    const geo = new THREE.BoxGeometry(7, 0.18, 8);
+    const tile = new THREE.Mesh(geo, roadMat);
+    tile.position.set(0, -0.09, -i * 8 + 20);
+    scene.add(tile);
+    roadTiles.push(tile);
+
+    // Neon lane lines
+    addLaneLine(tile.position.z);
+  }
+
+  // Background buildings/pillars
+  for (let i = 0; i < 20; i++) {
+    const side = i % 2 === 0 ? 1 : -1;
+    const geo = new THREE.BoxGeometry(1.2 + Math.random(), 4 + Math.random() * 8, 1.2);
+    const hue = Math.random() > 0.5 ? 0x0a1a3a : 0x1a0a2a;
+    const mat = new THREE.MeshPhongMaterial({ color: hue, emissive: new THREE.Color(Math.random() > 0.5 ? 0x001133 : 0x110033) });
+    const b = new THREE.Mesh(geo, mat);
+    b.position.set(side * (5.5 + Math.random() * 3), 0, -i * 5 + 10);
+    scene.add(b);
+    bgObjects.push(b);
+  }
+
+  buildPlayer();
+}
+
+function addLaneLine(z) {
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0x0044ff });
+  const lineGeo = new THREE.BoxGeometry(0.06, 0.05, 8);
+  [-2.2, 0, 2.2, -3.5, 3.5].forEach(x => {
+    const l = new THREE.Mesh(lineGeo, lineMat);
+    l.position.set(x, 0.01, z);
+    scene.add(l);
+  });
+}
+
+function buildPlayer() {
+  const group = new THREE.Group();
+
+  // Body
+  const bodyGeo = new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.28, 0.7, 4, 8) : new THREE.CylinderGeometry(0.28, 0.28, 0.7, 8);
+  const bodyMat = new THREE.MeshPhongMaterial({ color: 0x00ccff, emissive: 0x003366 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.95;
+  group.add(body);
+  playerParts.body = body;
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(0.24, 8, 8);
+  const headMat = new THREE.MeshPhongMaterial({ color: 0xffcc99, emissive: 0x221100 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.65;
+  group.add(head);
+  playerParts.head = head;
+
+  // Arms
+  const armGeo = new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.09, 0.45, 4, 6) : new THREE.CylinderGeometry(0.09, 0.09, 0.45, 6);
+  const armMat = new THREE.MeshPhongMaterial({ color: 0x00aaee, emissive: 0x002244 });
+  const armL = new THREE.Mesh(armGeo, armMat);
+  armL.position.set(-0.42, 1.05, 0);
+  group.add(armL);
+  playerParts.armL = armL;
+
+  const armR = new THREE.Mesh(armGeo, armMat);
+  armR.position.set(0.42, 1.05, 0);
+  group.add(armR);
+  playerParts.armR = armR;
+
+  // Legs
+  const legGeo = new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.11, 0.5, 4, 6) : new THREE.CylinderGeometry(0.11, 0.11, 0.5, 6);
+  const legMat = new THREE.MeshPhongMaterial({ color: 0x0066cc, emissive: 0x001133 });
+  const legL = new THREE.Mesh(legGeo, legMat);
+  legL.position.set(-0.18, 0.45, 0);
+  group.add(legL);
+  playerParts.legL = legL;
+
+  const legR = new THREE.Mesh(legGeo, legMat);
+  legR.position.set(0.18, 0.45, 0);
+  group.add(legR);
+  playerParts.legR = legR;
+
+  // Glow ring under player
+  const glowGeo = new THREE.RingGeometry(0.3, 0.6, 16);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.02;
+  group.add(glow);
+  playerParts.glow = glow;
+
+  group.position.set(0, 0, 3);
+  scene.add(group);
+  player = group;
+}
+
+function setupLights() {
+  const ambient = new THREE.AmbientLight(0x222244, 1.2);
+  scene.add(ambient);
+
+  const dir = new THREE.DirectionalLight(0x8888ff, 1.5);
+  dir.position.set(5, 10, 5);
+  scene.add(dir);
+
+  const neon1 = new THREE.PointLight(0x00ffff, 2, 15);
+  neon1.position.set(-4, 3, 0);
+  scene.add(neon1);
+
+  const neon2 = new THREE.PointLight(0xff00ff, 2, 15);
+  neon2.position.set(4, 3, -5);
+  scene.add(neon2);
+}
+
+// ---- Gate System ----
+function pickWordPair() {
+  if (pendingPairs.length === 0) {
+    // Shuffle a fresh batch
+    const shuffled = [...WORD_PAIRS].sort(() => Math.random() - 0.5);
+    pendingPairs = shuffled;
+  }
+  let pair;
+  // Avoid last used
+  do { pair = pendingPairs.pop(); } while (pendingPairs.length > 0 && WORD_PAIRS.indexOf(pair) === lastWordIndex);
+  lastWordIndex = WORD_PAIRS.indexOf(pair);
+  return pair;
+}
+
+function spawnGate(zPos) {
+  const pair = pickWordPair();
+  const correctOnRight = Math.random() > 0.5;
+
+  const gateGroup = new THREE.Group();
+  gateGroup.position.z = zPos;
+
+  // Gate frame L
+  const makeFrame = (xPos, isCorrect, label) => {
+    const g = new THREE.Group();
+    // Main arch — her iki kapı da aynı renk (cevap ipucu yok)
+    const archMat = new THREE.MeshPhongMaterial({
+      color: 0x1a1a3a,
+      emissive: 0x0a0a22,
+      transparent: true, opacity: 0.88, shininess: 80
+    });
+    const backGeo = new THREE.BoxGeometry(GATE_WIDTH, GATE_HEIGHT, 0.25);
+    const back = new THREE.Mesh(backGeo, archMat);
+    back.position.set(xPos, GATE_HEIGHT / 2, 0);
+    g.add(back);
+
+    // Border — her iki kapı aynı neon mavi/mor
+    const borderMat = new THREE.MeshBasicMaterial({ color: 0x8844ff });
+    const bTop = new THREE.Mesh(new THREE.BoxGeometry(GATE_WIDTH + 0.1, 0.12, 0.3), borderMat);
+    bTop.position.set(xPos, GATE_HEIGHT + 0.06, 0.05);
+    g.add(bTop);
+    const bBot = new THREE.Mesh(new THREE.BoxGeometry(GATE_WIDTH + 0.1, 0.12, 0.3), borderMat);
+    bBot.position.set(xPos, 0.06, 0.05);
+    g.add(bBot);
+    const bL = new THREE.Mesh(new THREE.BoxGeometry(0.12, GATE_HEIGHT + 0.2, 0.3), borderMat);
+    bL.position.set(xPos - GATE_WIDTH / 2 - 0.06, GATE_HEIGHT / 2, 0.05);
+    g.add(bL);
+    const bR = new THREE.Mesh(new THREE.BoxGeometry(0.12, GATE_HEIGHT + 0.2, 0.3), borderMat);
+    bR.position.set(xPos + GATE_WIDTH / 2 + 0.06, GATE_HEIGHT / 2, 0.05);
+    g.add(bR);
+
+    // Canvas-based text sprite — her iki kapı aynı renk paleti
+    const sprite = makeTextSprite(label);
+    sprite.position.set(xPos, GATE_HEIGHT / 2 + 0.1, 0.3);
+    g.add(sprite);
+
+    return { group: g, isCorrect, xPos, sprite, label };
+  };
+
+  const leftData = makeFrame(LANE_LEFT, !correctOnRight, correctOnRight ? pair.wrong : pair.correct);
+  const rightData = makeFrame(LANE_RIGHT, correctOnRight, correctOnRight ? pair.correct : pair.wrong);
+
+  gateGroup.add(leftData.group);
+  gateGroup.add(rightData.group);
+  scene.add(gateGroup);
+
+  gates.push({
+    group: gateGroup,
+    left: leftData,
+    right: rightData,
+    passed: false,
+    zPos
+  });
+}
+
+function makeTextSprite(text) {
+  // Her iki kapı için aynı renk — cevap ipucu yok
+  const color = '#e8e0ff';
+  const bgColor = '#15123a';
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 160;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = bgColor;
+  if (ctx.roundRect) { ctx.roundRect(4, 4, 504, 152, 18); ctx.fill(); }
+  else { ctx.fillRect(4, 4, 504, 152); }
+
+  ctx.fillStyle = color;
+  ctx.font = 'bold 58px Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#aa88ff';
+  ctx.shadowBlur = 18;
+  ctx.fillText(text, 256, 84, 490);
+
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3.0, 0.95, 1);
+  return sprite;
+}
+
+// ---- Particles ----
+function spawnParticles(x, y, z, color, count = 12) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.08, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const p = new THREE.Mesh(geo, mat);
+    p.position.set(x + (Math.random() - 0.5) * 2, y + Math.random(), z);
+    const vel = {
+      x: (Math.random() - 0.5) * 0.12,
+      y: 0.04 + Math.random() * 0.1,
+      z: (Math.random() - 0.5) * 0.06
+    };
+    scene.add(p);
+    particles.push({ mesh: p, vel, life: 1.0 });
+  }
+}
+
+// ---- HUD ----
+function updateHUD() {
+  scoreEl.textContent = score;
+  const hearts = livesEl.querySelectorAll('.heart');
+  hearts.forEach((h, i) => {
+    h.textContent = i < lives ? '❤️' : '🖤';
+    h.style.opacity = i < lives ? '1' : '0.3';
+  });
+  if (combo >= 3) {
+    comboEl.textContent = `🔥 x${combo}`;
+  } else {
+    comboEl.textContent = '';
+  }
+}
+
+function showComboMsg(msg) {
+  comboMsgEl.textContent = msg;
+  comboMsgEl.style.opacity = '1';
+  comboMsgEl.style.transform = 'translate(-50%, -60%) scale(1.15)';
+  setTimeout(() => {
+    comboMsgEl.style.opacity = '0';
+    comboMsgEl.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 1200);
+}
+
+function flashScreen(color, dur = 300) {
+  flashEl.style.background = color;
+  flashEl.style.opacity = '0.55';
+  setTimeout(() => { flashEl.style.opacity = '0'; }, dur);
+}
+
+// ---- Game Logic ----
+function handleCorrect() {
+  score += 10;
+  combo++;
+  correctCount++;
+
+  let bonus = 0;
+  if (combo === 3) { bonus = 5; showComboMsg('Harika! 🔥'); playCombo(); }
+  else if (combo === 5) { bonus = 10; showComboMsg('Seri yakaladın! ⚡'); playCombo(); }
+  else if (combo > 5 && combo % 5 === 0) { bonus = 10; showComboMsg('Mükemmel! 🌟'); playCombo(); }
+  else if (combo >= 2) {
+    const msgs = ['Çok iyi gidiyorsun!', 'Mükemmel seçim!', 'Devam et!'];
+    if (Math.random() > 0.5) showComboMsg(msgs[Math.floor(Math.random() * msgs.length)]);
+  }
+
+  score += bonus;
+  if (score < 0) score = 0;
+
+  playCorrect();
+  flashScreen('rgba(0,255,100,0.3)', 250);
+  spawnParticles(player.position.x, 2, player.position.z - 2, 0x00ff88, 14);
+  updateHUD();
+}
+
+function handleWrong() {
+  score = Math.max(0, score - 5);
+  lives--;
+  combo = 0;
+  wrongCount++;
+
+  playWrong();
+  flashScreen('rgba(255,0,50,0.55)', 400);
+  shakeTimer = 0.5;
+  shakeAmt = 0.25;
+  spawnParticles(player.position.x, 2, player.position.z - 2, 0xff3333, 10);
+  updateHUD();
+
+  if (lives <= 0) endGame();
+}
+
+function endGame() {
+  gameState = 'gameover';
+  if (score > bestScore) { bestScore = score; localStorage.setItem('kk_best', bestScore); }
+
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-correct').textContent = correctCount;
+  document.getElementById('final-wrong').textContent = wrongCount;
+  document.getElementById('best-score-val').textContent = bestScore;
+
+  hudEl.style.display = 'none';
+  touchHint.style.display = 'none';
+  gameoverScreen.classList.remove('hidden');
+}
+
+// ---- Controls ----
+let moveDir = 0;
+const LANES = [LANE_LEFT, LANE_MID, LANE_RIGHT];
+let currentLane = 1; // 0=left, 1=mid, 2=right
+
+function moveLeft() {
+  if (gameState !== 'playing') return;
+  if (currentLane > 0) currentLane--;
+  playerTargetX = LANES[currentLane];
+}
+function moveRight() {
+  if (gameState !== 'playing') return;
+  if (currentLane < 2) currentLane++;
+  playerTargetX = LANES[currentLane];
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
+});
+
+// Touch — sadece oyun alanına uygula, butonlara değil
+document.addEventListener('touchstart', e => {
+  // Butonlara ve UI elemanlarına dokunuluyorsa engelleme
+  const tag = e.target.tagName;
+  if (tag === 'BUTTON' || e.target.closest('button') || e.target.id === 'mute-btn') return;
+
+  if (gameState === 'playing') {
+    e.preventDefault();
+    const t = e.touches[0];
+    if (t.clientX < window.innerWidth / 2) moveLeft();
+    else moveRight();
+  }
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  if (gameState === 'playing') e.preventDefault();
+}, { passive: false });
+
+// Buton event listener'ları — onclick attribute yerine JS ile bağla
+document.addEventListener('DOMContentLoaded', () => {});
+function bindButtons() {
+  const btnStart = document.getElementById('btn-start');
+  const btnRestart = document.getElementById('btn-restart');
+  const btnMenu = document.getElementById('btn-menu');
+  const muteBtn = document.getElementById('mute-btn');
+
+  if (btnStart) {
+    btnStart.addEventListener('click', startGame);
+    btnStart.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+  }
+  if (btnRestart) {
+    btnRestart.addEventListener('click', restartGame);
+    btnRestart.addEventListener('touchend', e => { e.preventDefault(); restartGame(); });
+  }
+  if (btnMenu) {
+    btnMenu.addEventListener('click', showStart);
+    btnMenu.addEventListener('touchend', e => { e.preventDefault(); showStart(); });
+  }
+  if (muteBtn) {
+    muteBtn.addEventListener('click', toggleMute);
+    muteBtn.addEventListener('touchend', e => { e.preventDefault(); toggleMute(); });
+  }
+}
+
+// ---- Game Loop ----
+let lastTime = 0;
+function loop(ts) {
+  animId = requestAnimationFrame(loop);
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  if (gameState !== 'playing') {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // Increase speed over time
+  speed = baseSpeed + correctCount * 0.003;
+  speed = Math.min(speed, 0.45);
+
+  // Move road tiles
+  roadTiles.forEach(tile => {
+    tile.position.z += speed;
+    if (tile.position.z > 24) tile.position.z -= 80;
+  });
+
+  // Move bg objects
+  bgObjects.forEach(b => {
+    b.position.z += speed;
+    if (b.position.z > 20) b.position.z -= 100;
+  });
+
+  // Move gates
+  gates.forEach(gate => {
+    gate.group.position.z += speed;
+  });
+
+  // Spawn gates
+  nextGateZ += speed;
+  if (nextGateZ >= 0) {
+    spawnGate(-50);
+    nextGateZ = -GATE_SPACING;
+  }
+
+  // Collision detection
+  gates.forEach(gate => {
+    if (gate.passed) return;
+    const gz = gate.group.position.z;
+    if (gz > 2 && gz < 6) {
+      gate.passed = true;
+      const px = player.position.x;
+      const leftHit = Math.abs(px - gate.left.xPos) < GATE_WIDTH / 2 + 0.3;
+      const rightHit = Math.abs(px - gate.right.xPos) < GATE_WIDTH / 2 + 0.3;
+
+      if (leftHit) {
+        gate.left.isCorrect ? handleCorrect() : handleWrong();
+      } else if (rightHit) {
+        gate.right.isCorrect ? handleCorrect() : handleWrong();
+      }
+    }
+  });
+
+  // Remove old gates
+  for (let i = gates.length - 1; i >= 0; i--) {
+    if (gates[i].group.position.z > 15) {
+      scene.remove(gates[i].group);
+      gates.splice(i, 1);
+    }
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt * 1.5;
+    p.mesh.position.x += p.vel.x;
+    p.mesh.position.y += p.vel.y;
+    p.mesh.position.z += p.vel.z + speed;
+    p.vel.y -= 0.004;
+    p.mesh.material.opacity = p.life;
+    p.mesh.material.transparent = true;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+    }
+  }
+
+  // Player movement
+  player.position.x += (playerTargetX - player.position.x) * 0.18;
+  player.position.y += (playerTargetY - player.position.y) * 0.2;
+
+  // Run animation
+  runCycle += dt * 8;
+  if (playerParts.legL) playerParts.legL.rotation.x = Math.sin(runCycle) * 0.5;
+  if (playerParts.legR) playerParts.legR.rotation.x = Math.sin(runCycle + Math.PI) * 0.5;
+  if (playerParts.armL) playerParts.armL.rotation.x = Math.sin(runCycle + Math.PI) * 0.4;
+  if (playerParts.armR) playerParts.armR.rotation.x = Math.sin(runCycle) * 0.4;
+  if (playerParts.body) playerParts.body.rotation.z = Math.sin(runCycle * 0.5) * 0.04;
+  if (playerParts.head) playerParts.head.rotation.y = Math.sin(runCycle * 0.5) * 0.08;
+
+  // Camera shake
+  let shakeX = 0, shakeY = 0;
+  if (shakeTimer > 0) {
+    shakeTimer -= dt;
+    shakeX = (Math.random() - 0.5) * shakeAmt;
+    shakeY = (Math.random() - 0.5) * shakeAmt;
+  }
+
+  camera.position.set(player.position.x * 0.3 + shakeX, 3.5 + shakeY, 7);
+  camera.lookAt(player.position.x * 0.15, 1, -8);
+
+  renderer.render(scene, camera);
+}
+
+// ---- Resize ----
+function onResize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 300));
+
+// ---- Game States ----
+function startGame() {
+  if (!THREE) return;
+
+  // Reset state
+  score = 0; lives = 3; combo = 0; correctCount = 0; wrongCount = 0;
+  speed = baseSpeed; runCycle = 0;
+  currentLane = 1; playerTargetX = 0;
+  shakeTimer = 0;
+  nextGateZ = -GATE_SPACING;
+  pendingPairs = [];
+  lastWordIndex = -1;
+
+  // Clear gates
+  gates.forEach(g => scene.remove(g.group));
+  gates.length = 0;
+  particles.forEach(p => scene.remove(p.mesh));
+  particles.length = 0;
+
+  player.position.set(0, 0, 3);
+
+  startScreen.classList.add('hidden');
+  gameoverScreen.classList.add('hidden');
+  hudEl.style.display = 'flex';
+  touchHint.style.display = 'block';
+  touchHint.textContent = '◀ Sol/Sağ dokun ▶';
+
+  updateHUD();
+  gameState = 'playing';
+}
+
+function restartGame() {
+  gameoverScreen.classList.add('hidden');
+  startGame();
+}
+
+function showStart() {
+  gameoverScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  gameState = 'menu';
+}
+
+// ---- Init ----
+function init() {
+  // Try loading Three.js
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
+  script.onload = () => {
+    THREE = window.THREE;
+    initThree();
+    onResize();
+    bindButtons();
+    document.getElementById('loading-overlay').style.display = 'none';
+    startScreen.classList.remove('hidden');
+    requestAnimationFrame(loop);
+  };
+  script.onerror = () => {
+    document.getElementById('loading-overlay').innerHTML =
+      '<div style="color:#ff4444;text-align:center;padding:30px">⚠️ Three.js yüklenemedi.<br>Lütfen internet bağlantınızı kontrol edin ve sayfayı yenileyin.</div>';
+  };
+  document.head.appendChild(script);
+}
+
+// Prevent default touch behaviors
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+
+// Fix iOS 100vh
+function setVH() {
+  document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+}
+window.addEventListener('resize', setVH);
+setVH();
+
+init();
+</script>
+</body>
+</html>
