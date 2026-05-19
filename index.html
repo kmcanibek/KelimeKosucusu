@@ -369,7 +369,7 @@ let THREE, renderer, scene, camera, animId;
 let gameState = 'menu'; // menu | playing | gameover
 let score = 0, lives = 3, combo = 0, correctCount = 0, wrongCount = 0;
 let bestScore = parseInt(localStorage.getItem('kk_best') || '0');
-let speed = 0.18, baseSpeed = 0.18;
+let speed = 0.10, baseSpeed = 0.10;
 let playerX = 0, playerTargetX = 0;
 let playerY = 0, playerTargetY = 0;
 let shakeTimer = 0, shakeAmt = 0;
@@ -386,7 +386,7 @@ let runCycle = 0;
 let lastWordIndex = -1;
 
 // Gate system
-const GATE_SPACING = 28;
+const GATE_SPACING = 38;
 const GATE_WIDTH = 2.8;
 const GATE_HEIGHT = 3.5;
 let nextGateZ = -25;
@@ -831,25 +831,25 @@ function makeTextSprite(text) {
   const color = '#e8e0ff';
   const bgColor = '#15123a';
   const cv = document.createElement('canvas');
-  cv.width = 512; cv.height = 160;
+  cv.width = 640; cv.height = 220;
   const ctx = cv.getContext('2d');
 
   ctx.fillStyle = bgColor;
-  if (ctx.roundRect) { ctx.roundRect(4, 4, 504, 152, 18); ctx.fill(); }
-  else { ctx.fillRect(4, 4, 504, 152); }
+  if (ctx.roundRect) { ctx.roundRect(4, 4, 632, 212, 22); ctx.fill(); }
+  else { ctx.fillRect(4, 4, 632, 212); }
 
   ctx.fillStyle = color;
-  ctx.font = 'bold 58px Segoe UI, Arial';
+  ctx.font = 'bold 82px Segoe UI, Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = '#aa88ff';
-  ctx.shadowBlur = 18;
-  ctx.fillText(text, 256, 84, 490);
+  ctx.shadowBlur = 24;
+  ctx.fillText(text, 320, 114, 610);
 
   const tex = new THREE.CanvasTexture(cv);
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(3.0, 0.95, 1);
+  sprite.scale.set(4.2, 1.45, 1);
   return sprite;
 }
 
@@ -1049,8 +1049,8 @@ function loop(ts) {
   }
 
   // Increase speed over time
-  speed = baseSpeed + correctCount * 0.003;
-  speed = Math.min(speed, 0.45);
+  speed = baseSpeed + correctCount * 0.0015;
+  speed = Math.min(speed, 0.28);
 
   // Move road tiles
   roadTiles.forEach(tile => {
