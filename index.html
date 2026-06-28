@@ -181,6 +181,65 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
+  .customizer {
+    width: min(520px, calc(100vw - 32px));
+    margin: 10px auto 8px;
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.07);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+  }
+  .customizer-title {
+    color: #ffffff;
+    font-size: clamp(13px, 3vw, 16px);
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .option-row {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+  }
+  .option-label {
+    color: #aeb8da;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: right;
+  }
+  .option-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .choice-btn {
+    min-width: 42px;
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    cursor: pointer;
+    pointer-events: all;
+    font-weight: 800;
+  }
+  .choice-btn.active {
+    border-color: #00ffff;
+    box-shadow: 0 0 18px rgba(0,255,255,0.45);
+    background: rgba(0,255,255,0.16);
+  }
+  .swatch {
+    width: 26px;
+    height: 18px;
+    display: inline-block;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.35);
+    vertical-align: middle;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -211,9 +270,37 @@
 <div id="screen" id="start-screen">
   <div class="screen-title">Kelime<br>Koşusu</div>
   <div class="screen-sub">Doğru kelimenin olduğu kapıdan geç!<br>3 yanlışta oyun biter 🏃</div>
+  <div class="customizer" id="character-customizer">
+    <div class="customizer-title">Karakterini seç</div>
+    <div class="option-row">
+      <div class="option-label">Kıyafet</div>
+      <div class="option-buttons" data-option="outfit">
+        <button class="choice-btn active" data-value="blue"><span class="swatch" style="background:#14b8ff"></span></button>
+        <button class="choice-btn" data-value="red"><span class="swatch" style="background:#ff4d6d"></span></button>
+        <button class="choice-btn" data-value="green"><span class="swatch" style="background:#28d17c"></span></button>
+        <button class="choice-btn" data-value="yellow"><span class="swatch" style="background:#ffd34d"></span></button>
+      </div>
+    </div>
+    <div class="option-row">
+      <div class="option-label">Saç</div>
+      <div class="option-buttons" data-option="hair">
+        <button class="choice-btn active" data-value="short">Kısa</button>
+        <button class="choice-btn" data-value="curly">Dalga</button>
+        <button class="choice-btn" data-value="cap">Şapka</button>
+      </div>
+    </div>
+    <div class="option-row">
+      <div class="option-label">Ten</div>
+      <div class="option-buttons" data-option="skin">
+        <button class="choice-btn active" data-value="light"><span class="swatch" style="background:#f2c7a2"></span></button>
+        <button class="choice-btn" data-value="tan"><span class="swatch" style="background:#c98b5b"></span></button>
+        <button class="choice-btn" data-value="dark"><span class="swatch" style="background:#7a4d35"></span></button>
+      </div>
+    </div>
+  </div>
   <button class="btn btn-primary" id="btn-start">BAŞLA</button>
   <div class="screen-sub" style="font-size:clamp(11px,2.5vw,14px); margin-top:4px;">
-    📱 Sol/Sağ dokun &nbsp;|&nbsp; ⌨️ ← → tuşları
+    📱 Sürükle &nbsp;|&nbsp; ⌨️ ← → tuşları
   </div>
 </div>
 
@@ -409,6 +496,32 @@ let playerY = 0, playerTargetY = 0;
 let shakeTimer = 0, shakeAmt = 0;
 let muted = false;
 let audioCtx = null;
+let dragControlActive = false;
+
+const CHARACTER_OPTIONS = {
+  outfit: {
+    blue: { shirt: 0x14b8ff, shorts: 0x1857d8, shoes: 0xf8fafc },
+    red: { shirt: 0xff4d6d, shorts: 0x7f1d1d, shoes: 0xf8fafc },
+    green: { shirt: 0x28d17c, shorts: 0x14532d, shoes: 0xf8fafc },
+    yellow: { shirt: 0xffd34d, shorts: 0x7c4a03, shoes: 0x111827 }
+  },
+  skin: {
+    light: 0xf2c7a2,
+    tan: 0xc98b5b,
+    dark: 0x7a4d35
+  },
+  hair: {
+    short: { color: 0x2b1b12 },
+    curly: { color: 0x1c120c },
+    cap: { color: 0x111827, cap: 0xff4d6d }
+  }
+};
+
+const characterStyle = {
+  outfit: localStorage.getItem('kk_outfit') || 'blue',
+  hair: localStorage.getItem('kk_hair') || 'short',
+  skin: localStorage.getItem('kk_skin') || 'light'
+};
 
 // Three.js objects
 let player, playerParts = {};
@@ -785,61 +898,124 @@ function addLaneLine(z) {
   });
 }
 
+function makeMat(color, emissive = 0x000000, shininess = 55) {
+  return new THREE.MeshPhongMaterial({ color, emissive, shininess });
+}
+
 function buildPlayer() {
+  if (player) scene.remove(player);
+  playerParts = {};
+
   const group = new THREE.Group();
+  const outfit = CHARACTER_OPTIONS.outfit[characterStyle.outfit] || CHARACTER_OPTIONS.outfit.blue;
+  const skinColor = CHARACTER_OPTIONS.skin[characterStyle.skin] || CHARACTER_OPTIONS.skin.light;
+  const hairStyle = CHARACTER_OPTIONS.hair[characterStyle.hair] || CHARACTER_OPTIONS.hair.short;
 
-  // Body
-  const bodyGeo = new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.28, 0.7, 4, 8) : new THREE.CylinderGeometry(0.28, 0.28, 0.7, 8);
-  const bodyMat = new THREE.MeshPhongMaterial({ color: 0x00ccff, emissive: 0x003366 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.95;
-  group.add(body);
-  playerParts.body = body;
+  const skinMat = makeMat(skinColor, 0x120804, 45);
+  const shirtMat = makeMat(outfit.shirt, 0x061320, 80);
+  const shortsMat = makeMat(outfit.shorts, 0x030816, 65);
+  const shoeMat = makeMat(outfit.shoes, 0x050505, 35);
+  const hairMat = makeMat(hairStyle.color, 0x030201, 35);
 
-  // Head
-  const headGeo = new THREE.SphereGeometry(0.24, 8, 8);
-  const headMat = new THREE.MeshPhongMaterial({ color: 0xffcc99, emissive: 0x221100 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 1.65;
+  const capsule = THREE.CapsuleGeometry
+    ? (r, h, s = 6, rs = 10) => new THREE.CapsuleGeometry(r, h, s, rs)
+    : (r, h, s = 8) => new THREE.CylinderGeometry(r, r, h + r, s);
+
+  const torso = new THREE.Mesh(capsule(0.28, 0.58, 6, 12), shirtMat);
+  torso.position.y = 1.08;
+  torso.scale.set(1.05, 1.15, 0.72);
+  group.add(torso);
+  playerParts.body = torso;
+
+  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.18, 0.34), shortsMat);
+  waist.position.y = 0.68;
+  group.add(waist);
+  playerParts.waist = waist;
+
+  const neck = new THREE.Mesh(capsule(0.08, 0.12, 4, 8), skinMat);
+  neck.position.y = 1.47;
+  group.add(neck);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 18, 16), skinMat);
+  head.position.y = 1.72;
+  head.scale.set(0.9, 1.06, 0.86);
   group.add(head);
   playerParts.head = head;
 
-  // Arms
-  const armGeo = new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.09, 0.45, 4, 6) : new THREE.CylinderGeometry(0.09, 0.09, 0.45, 6);
-  const armMat = new THREE.MeshPhongMaterial({ color: 0x00aaee, emissive: 0x002244 });
-  const armL = new THREE.Mesh(armGeo, armMat);
-  armL.position.set(-0.42, 1.05, 0);
-  group.add(armL);
-  playerParts.armL = armL;
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), skinMat);
+  nose.position.set(0, 1.72, 0.205);
+  nose.scale.set(0.75, 0.9, 1.25);
+  group.add(nose);
 
-  const armR = new THREE.Mesh(armGeo, armMat);
-  armR.position.set(0.42, 1.05, 0);
-  group.add(armR);
-  playerParts.armR = armR;
+  [-1, 1].forEach(side => {
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), skinMat);
+    ear.position.set(side * 0.205, 1.72, 0);
+    ear.scale.set(0.55, 0.9, 0.45);
+    group.add(ear);
+  });
 
-  // Legs
-  const legGeo = new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.11, 0.5, 4, 6) : new THREE.CylinderGeometry(0.11, 0.11, 0.5, 6);
-  const legMat = new THREE.MeshPhongMaterial({ color: 0x0066cc, emissive: 0x001133 });
-  const legL = new THREE.Mesh(legGeo, legMat);
-  legL.position.set(-0.18, 0.45, 0);
-  group.add(legL);
-  playerParts.legL = legL;
+  const hairGroup = new THREE.Group();
+  if (characterStyle.hair === 'curly') {
+    for (let i = 0; i < 9; i++) {
+      const curl = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), hairMat);
+      const angle = (i / 9) * Math.PI * 2;
+      curl.position.set(Math.cos(angle) * 0.14, 1.93 + (i % 2) * 0.025, Math.sin(angle) * 0.095);
+      hairGroup.add(curl);
+    }
+  } else {
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.245, 18, 10), hairMat);
+    hair.position.y = 1.88;
+    hair.scale.set(0.92, 0.38, 0.84);
+    hairGroup.add(hair);
+  }
+  if (characterStyle.hair === 'cap') {
+    const capMat = makeMat(hairStyle.cap, 0x120408, 60);
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 0.16), capMat);
+    brim.position.set(0, 1.82, 0.2);
+    hairGroup.add(brim);
+  }
+  group.add(hairGroup);
+  playerParts.hair = hairGroup;
 
-  const legR = new THREE.Mesh(legGeo, legMat);
-  legR.position.set(0.18, 0.45, 0);
-  group.add(legR);
-  playerParts.legR = legR;
+  const armGeo = capsule(0.055, 0.42, 5, 8);
+  const handGeo = new THREE.SphereGeometry(0.065, 10, 8);
+  [-1, 1].forEach(side => {
+    const arm = new THREE.Group();
+    const sleeve = new THREE.Mesh(capsule(0.07, 0.18, 5, 8), shirtMat);
+    sleeve.position.y = -0.06;
+    const forearm = new THREE.Mesh(armGeo, skinMat);
+    forearm.position.y = -0.32;
+    const hand = new THREE.Mesh(handGeo, skinMat);
+    hand.position.y = -0.58;
+    arm.add(sleeve, forearm, hand);
+    arm.position.set(side * 0.36, 1.32, 0);
+    arm.rotation.z = side * 0.28;
+    group.add(arm);
+    playerParts[side < 0 ? 'armL' : 'armR'] = arm;
+  });
 
-  // Glow ring under player
-  const glowGeo = new THREE.RingGeometry(0.3, 0.6, 16);
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+  const legGeo = capsule(0.075, 0.48, 5, 9);
+  [-1, 1].forEach(side => {
+    const leg = new THREE.Group();
+    const thigh = new THREE.Mesh(legGeo, skinMat);
+    thigh.position.y = -0.24;
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.32), shoeMat);
+    shoe.position.set(0, -0.55, 0.08);
+    leg.add(thigh, shoe);
+    leg.position.set(side * 0.16, 0.66, 0);
+    group.add(leg);
+    playerParts[side < 0 ? 'legL' : 'legR'] = leg;
+  });
+
+  const glowGeo = new THREE.RingGeometry(0.35, 0.66, 24);
+  const glowMat = new THREE.MeshBasicMaterial({ color: outfit.shirt, side: THREE.DoubleSide, transparent: true, opacity: 0.28 });
   const glow = new THREE.Mesh(glowGeo, glowMat);
   glow.rotation.x = -Math.PI / 2;
   glow.position.y = 0.02;
   group.add(glow);
   playerParts.glow = glow;
 
-  group.position.set(0, 0, 3);
+  group.position.set(playerX || 0, 0, 3);
   scene.add(group);
   player = group;
 }
@@ -1115,62 +1291,65 @@ document.addEventListener('keyup', e => {
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') resetBoost();
 });
 
-// Dokunmatik: kısa dokunuş = şerit değiştir, basılı tut = hızlan
-let touchStartX = 0, touchStartTime = 0;
-const TAP_THRESHOLD_MS = 200; // bu süreden kısa = tap
-let activeTouchCount = 0;
+function isUiControl(target) {
+  return target.closest('button') || target.closest('#character-customizer') || target.id === 'mute-btn';
+}
 
-document.addEventListener('touchstart', e => {
-  const tag = e.target.tagName;
-  if (tag === 'BUTTON' || e.target.closest('button') || e.target.id === 'mute-btn') return;
+function setLaneFromClientX(clientX) {
   if (gameState !== 'playing') return;
+  const third = window.innerWidth / 3;
+  currentLane = Math.max(0, Math.min(2, Math.floor(clientX / third)));
+  playerTargetX = LANES[currentLane];
+}
+
+document.addEventListener('pointerdown', e => {
+  if (isUiControl(e.target) || gameState !== 'playing') return;
   e.preventDefault();
-
-  activeTouchCount = e.touches.length;
-  const t = e.changedTouches[0];
-  touchStartX = t.clientX;
-  touchStartTime = Date.now();
-
-  // Basılı tutma = hızlan (hemen başlat, tap ise touchend'de iptal olur)
+  dragControlActive = true;
+  setLaneFromClientX(e.clientX);
   speedUp();
 }, { passive: false });
 
-document.addEventListener('touchend', e => {
-  const tag = e.target.tagName;
-  if (tag === 'BUTTON' || e.target.closest('button') || e.target.id === 'mute-btn') return;
-  if (gameState !== 'playing') return;
+document.addEventListener('pointermove', e => {
+  if (!dragControlActive || gameState !== 'playing') return;
   e.preventDefault();
-
-  const elapsed = Date.now() - touchStartTime;
-  const t = e.changedTouches[0];
-
-  // Kısa dokunuş = şerit değiştir, boost'u iptal et
-  if (elapsed < TAP_THRESHOLD_MS) {
-    resetBoost();
-    if (t.clientX < window.innerWidth / 2) moveLeft();
-    else moveRight();
-  }
-
-  activeTouchCount = e.touches.length;
-  if (activeTouchCount === 0) resetBoost();
+  setLaneFromClientX(e.clientX);
 }, { passive: false });
 
-document.addEventListener('touchcancel', e => {
-  activeTouchCount = 0;
+function stopDragControl() {
+  dragControlActive = false;
   resetBoost();
-}, { passive: false });
+}
 
-document.addEventListener('touchmove', e => {
-  if (gameState === 'playing') e.preventDefault();
-}, { passive: false });
+document.addEventListener('pointerup', stopDragControl);
+document.addEventListener('pointercancel', stopDragControl);
 
 // Buton event listener'ları — onclick attribute yerine JS ile bağla
 document.addEventListener('DOMContentLoaded', () => {});
+
+function bindCustomizer() {
+  document.querySelectorAll('.option-buttons').forEach(group => {
+    const option = group.dataset.option;
+    group.querySelectorAll('.choice-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.value === characterStyle[option]);
+      btn.addEventListener('click', () => {
+        characterStyle[option] = btn.dataset.value;
+        localStorage.setItem(`kk_${option}`, btn.dataset.value);
+        group.querySelectorAll('.choice-btn').forEach(item => item.classList.remove('active'));
+        btn.classList.add('active');
+        if (THREE && scene) buildPlayer();
+      });
+    });
+  });
+}
+
 function bindButtons() {
   const btnStart = document.getElementById('btn-start');
   const btnRestart = document.getElementById('btn-restart');
   const btnMenu = document.getElementById('btn-menu');
   const muteBtn = document.getElementById('mute-btn');
+
+  bindCustomizer();
 
   if (btnStart) {
     btnStart.addEventListener('click', startGame);
@@ -1303,6 +1482,7 @@ function loop(ts) {
 
 // ---- Resize ----
 function onResize() {
+  if (!renderer || !camera) return;
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
@@ -1318,7 +1498,7 @@ function startGame() {
   // Reset state
   score = 0; lives = 3; combo = 0; correctCount = 0; wrongCount = 0;
   speed = baseSpeed; runCycle = 0;
-  currentLane = 1; playerTargetX = 0;
+  currentLane = 1; playerX = 0; playerTargetX = 0; dragControlActive = false;
   shakeTimer = 0;
   nextGateZ = -GATE_SPACING;
   pendingPairs = [];
@@ -1336,7 +1516,7 @@ function startGame() {
   gameoverScreen.classList.add('hidden');
   hudEl.style.display = 'flex';
   touchHint.style.display = 'block';
-  touchHint.textContent = 'Dokun = şerit  |  Basılı tut = ⚡ hızlan';
+  touchHint.textContent = 'Sürükle = şerit değiştir  |  Basılı tut = ⚡ hızlan';
 
   updateHUD();
   gameState = 'playing';
