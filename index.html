@@ -241,6 +241,32 @@
     vertical-align: middle;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Warm daytime street palette. */
+html,body{background:#c6dfe7}
+#screen,#gameover-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(145deg,#f5efdfed,#d8e9e2ef);z-index:100;overflow-y:auto;padding:24px 12px;}
+#screen.hidden,#gameover-screen.hidden,[hidden]{display:none!important}
+.screen-title{background:none;color:#234b43;-webkit-text-fill-color:#234b43;animation:none;letter-spacing:-3px;font-size:clamp(42px,9vw,76px)}
+.eyebrow{color:#7b6850;font-size:12px;letter-spacing:3px;font-weight:800;margin-bottom:16px}
+.screen-sub,.option-label,.stat-lbl{color:#53685e}
+.customizer{background:#ffffff99;border:1px solid #b6c7bb;box-shadow:none}
+.customizer-title,.choice-btn,.stat-val{color:#28463e}
+.choice-btn{background:#fff;border-color:#b4c2b8}.choice-btn.active{border-color:#2f7360;background:#d9e9de;box-shadow:none}
+.btn-primary,.btn-secondary{background:#2e6b57;box-shadow:0 5px 0 #204f40;border-radius:14px;font-size:18px;letter-spacing:.5px}
+.stat-box{background:#ffffffaa;border-color:#bfccc0}
+#best-score-line{color:#876423;text-shadow:none}
+#hud{background:linear-gradient(#243e48dd,transparent);padding:16px 20px}
+#score-display,#combo-display,#combo-msg{ text-shadow:0 2px 4px #0005 }
+#touch-hint{color:#fff;background:#273d44dc;padding:10px 15px;border-radius:20px;bottom:22px;width:max-content;max-width:75vw}
+#mute-btn{background:#273d44dc}
+#choice-hud{position:fixed;top:80px;left:50%;transform:translateX(-50%);width:min(550px,94vw);z-index:25;text-align:center}
+.question-label{font-size:11px;letter-spacing:2px;font-weight:800;color:#294e48;margin-bottom:8px}
+#choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#choices button{min-height:56px;background:#fff5db;color:#273e42;border:2px solid #d7cbb1;border-radius:12px;font:bold clamp(15px,3.8vw,23px) 'Segoe UI',sans-serif;padding:8px 5px;cursor:pointer;box-shadow:0 4px 0 #0002}
+#choices button.selected{border-color:#2d6b57;background:#edf4db;box-shadow:0 4px 0 #2d6b57}
+#answer-feedback{display:inline-block;margin-top:10px;padding:7px 12px;border-radius:9px;background:#fffffff0;font-size:16px;font-weight:700;color:#246347}
+#answer-feedback:empty{display:none}#answer-feedback.wrong{color:#a5392b}
+@media(max-height:640px){#screen,#gameover-screen{justify-content:flex-start}.screen-title{font-size:38px}.screen-sub{margin:7px}.customizer{padding:8px;margin:4px}.eyebrow{margin-bottom:6px}#choice-hud{top:62px}}
 </style>
 </head>
 <body>
@@ -251,6 +277,7 @@
 </div>
 
 <canvas id="canvas"></canvas>
+<div id="choice-hud" hidden><div class="question-label">DOĞRU YAZIM HANGİSİ?</div><div id="choices" hidden><button id="left-choice"></button><button id="right-choice"></button></div><div id="answer-feedback" role="status"></div></div>
 
 <div id="ui">
   <div id="hud" style="display:none">
@@ -267,9 +294,9 @@
 </div>
 
 <!-- START SCREEN -->
-<div id="screen" id="start-screen">
-  <div class="screen-title">Kelime<br>Koşusu</div>
-  <div class="screen-sub">Doğru kelimenin olduğu kapıdan geç!<br>3 yanlışta oyun biter 🏃</div>
+<div id="screen">
+  <div class="eyebrow">MAHALLEDE BİR TUR</div><div class="screen-title">Kelime<br>Koşusu</div>
+  <div class="screen-sub">Mahallende koş, doğru yazımı seç.<br>İki şerit, iki kelime. 3 yanlışta oyun biter.</div>
   <div class="customizer" id="character-customizer">
     <div class="customizer-title">Karakterini seç</div>
     <div class="option-row">
@@ -300,7 +327,7 @@
   </div>
   <button class="btn btn-primary" id="btn-start">BAŞLA</button>
   <div class="screen-sub" style="font-size:clamp(11px,2.5vw,14px); margin-top:4px;">
-    📱 Sürükle &nbsp;|&nbsp; ⌨️ ← → tuşları
+    📱 Sol / sağ tarafa dokun &nbsp;|&nbsp; ⌨️ ← →
   </div>
 </div>
 
@@ -358,130 +385,796 @@
 // =====================================================================
 // KELIME LİSTESİ - Buradan kolayca düzenleyebilirsiniz
 // =====================================================================
+// Yazım kaynakları: TDK Yazım Kılavuzu ve Güncel Türkçe Sözlük.
+// https://tdk.gov.tr/icerik/yazim-kurallari/bitisik-yazilan-birlesik-kelimeler/
+// https://tdk.gov.tr/icerik/yazim-kurallari/ayri-yazilan-birlesik-kelimeler/
+// https://sozluk.gov.tr/
+// Bağlama göre iki biçimi de doğru olan çiftler kullanılmaz.
 const WORD_PAIRS = [
-  // --- Eski liste ---
-  { wrong: "Antreman", correct: "Antrenman" },
-  { wrong: "Arasıra", correct: "Ara sıra" },
-  { wrong: "Ardarda", correct: "Art arda" },
-  { wrong: "Arttırmak", correct: "Artırmak" },
-  { wrong: "Birarada", correct: "Bir arada" },
-  { wrong: "Birçok / Birkaç", correct: "Bir çok / Bir kaç" },
-  { wrong: "Birşey", correct: "Bir şey" },
-  { wrong: "Bu gün", correct: "Bugün" },
-  { wrong: "Çevrimiçi", correct: "Çevrim içi" },
-  { wrong: "Direk", correct: "Direkt" },
-  { wrong: "Döküman", correct: "Doküman" },
-  { wrong: "Elele", correct: "El ele" },
-  { wrong: "Espiri", correct: "Espri" },
-  { wrong: "Farketmek", correct: "Fark etmek" },
-  { wrong: "Haftaiçi", correct: "Hafta içi" },
-  { wrong: "Haketmek", correct: "Hak etmek" },
-  { wrong: "Heralde", correct: "Herhalde" },
-  { wrong: "Herbiri", correct: "Her biri" },
-  { wrong: "Hiçkimse", correct: "Hiç kimse" },
-  { wrong: "İddaa", correct: "İddia" },
-  { wrong: "İnsiyatif", correct: "İnisiyatif" },
-  { wrong: "Kareografi", correct: "Koreografi" },
-  { wrong: "Klüp", correct: "Kulüp" },
-  { wrong: "Madem ki", correct: "Mademki" },
-  { wrong: "Madur", correct: "Mağdur" },
-  { wrong: "Makina", correct: "Makine" },
-  { wrong: "Metod", correct: "Metot" },
-  { wrong: "Müsade", correct: "Müsaade" },
-  { wrong: "Müstehak", correct: "Müstahak" },
-  { wrong: "Mütevazi", correct: "Mütevazı" },
-  { wrong: "Burda", correct: "Burada" },
-  { wrong: "Orjinal", correct: "Orijinal" },
-  { wrong: "Pek az", correct: "Pek çok" },
-  { wrong: "Sarfetmek", correct: "Sarf etmek" },
-  { wrong: "Sohpet", correct: "Sohbet" },
-  { wrong: "Tabi ki", correct: "Tabii ki" },
-  { wrong: "Terketmek", correct: "Terk etmek" },
-  { wrong: "Tesbit", correct: "Tespit" },
-  { wrong: "Traş", correct: "Tıraş" },
-  { wrong: "Vaz geçmek", correct: "Vazgeçmek" },
-  { wrong: "Yanısıra", correct: "Yanı sıra" },
-  { wrong: "Yanyana", correct: "Yan yana" },
-  // --- Yeni liste ---
-  { wrong: "bir kaç", correct: "birkaç" },
-  { wrong: "herşey", correct: "her şey" },
-  { wrong: "herzaman", correct: "her zaman" },
-  { wrong: "hiç bir", correct: "hiçbir" },
-  { wrong: "hoşgeldin", correct: "hoş geldin" },
-  { wrong: "hoşçakal", correct: "hoşça kal" },
-  { wrong: "sağol", correct: "sağ ol" },
-  { wrong: "baş sağlığı", correct: "başsağlığı" },
-  { wrong: "hergün", correct: "her gün" },
-  { wrong: "haftasonu", correct: "hafta sonu" },
-  { wrong: "yıldönümü", correct: "yıl dönümü" },
-  { wrong: "şuan", correct: "şu an" },
-  { wrong: "alış veriş", correct: "alışveriş" },
-  { wrong: "gök kuşağı", correct: "gökkuşağı" },
-  { wrong: "göz yaşı", correct: "gözyaşı" },
-  { wrong: "gece kondu", correct: "gecekondu" },
-  { wrong: "hastahane", correct: "hastane" },
-  { wrong: "dakka", correct: "dakika" },
-  { wrong: "şöför", correct: "şoför" },
-  { wrong: "herkez", correct: "herkes" },
-  { wrong: "maydonoz", correct: "maydanoz" },
-  { wrong: "tomates", correct: "domates" },
-  { wrong: "çukulata", correct: "çikolata" },
-  { wrong: "poğoça", correct: "poğaça" },
-  { wrong: "fotograf", correct: "fotoğraf" },
-  { wrong: "matamatik", correct: "matematik" },
-  { wrong: "elektirik", correct: "elektrik" },
-  { wrong: "enerci", correct: "enerji" },
-  { wrong: "palyanço", correct: "palyaço" },
-  { wrong: "pisiklet", correct: "bisiklet" },
-  { wrong: "cant", correct: "jant" },
-  { wrong: "alarım", correct: "alarm" },
-  { wrong: "yanlız", correct: "yalnız" },
-  { wrong: "yalnış", correct: "yanlış" },
-  { wrong: "çünki", correct: "çünkü" },
-  { wrong: "ıstırap", correct: "ızdırap" },
-  { wrong: "serbes", correct: "serbest" },
-  { wrong: "malesef", correct: "maalesef" },
-  { wrong: "süpriz", correct: "sürpriz" },
-  { wrong: "çarşanba", correct: "çarşamba" },
-  { wrong: "seyehat", correct: "seyahat" },
-  { wrong: "gaste", correct: "gazete" },
-  { wrong: "ezane", correct: "eczane" },
-  { wrong: "meyva", correct: "meyve" },
-  { wrong: "kolanya", correct: "kolonya" },
-  { wrong: "melemen", correct: "menemen" },
-  { wrong: "kokariç", correct: "kokoreç" },
-  { wrong: "proğram", correct: "program" },
-  { wrong: "gurup", correct: "grup" },
-  { wrong: "filim", correct: "film" },
-  { wrong: "vürüs", correct: "virüs" },
-  { wrong: "artiz", correct: "artist" },
-  { wrong: "espiri", correct: "espri" },
-  { wrong: "röpörtaj", correct: "röportaj" },
-  { wrong: "gıramer", correct: "gramer" },
-  { wrong: "cimnastik", correct: "jimnastik" },
-  { wrong: "grib", correct: "grip" },
-  { wrong: "tanpon", correct: "tampon" },
-  { wrong: "pisikoloji", correct: "psikoloji" },
-  { wrong: "büsküvi", correct: "bisküvi" },
-  { wrong: "lavobo", correct: "lavabo" },
-  { wrong: "süeter", correct: "süveter" },
-  { wrong: "ataç", correct: "ataş" },
-  { wrong: "ilk okul", correct: "ilkokul" },
-  { wrong: "ana okulu", correct: "anaokulu" },
-  { wrong: "ilk öğretim", correct: "ilköğretim" },
-  { wrong: "orta öğretim", correct: "ortaöğretim" },
-  { wrong: "baş hekim", correct: "başhekim" },
-  { wrong: "baş hemşire", correct: "başhemşire" },
-  { wrong: "huzur evi", correct: "huzurevi" },
-  { wrong: "basım evi", correct: "basımevi" },
-  { wrong: "ay çiçeği", correct: "ayçiçeği" },
-  { wrong: "hanım eli", correct: "hanımeli" },
-  { wrong: "kahve rengi", correct: "kahverengi" },
-  { wrong: "su çiçeği", correct: "suçiçeği" },
-  { wrong: "vurdum duymaz", correct: "vurdumduymaz" },
-  { wrong: "git gide", correct: "gitgide" },
-  { wrong: "aç gözlü", correct: "açgözlü" },
-  { wrong: "saf kan", correct: "safkan" },
+  {
+    "wrong": "antreman",
+    "correct": "antrenman"
+  },
+  {
+    "wrong": "arasıra",
+    "correct": "ara sıra"
+  },
+  {
+    "wrong": "ardarda",
+    "correct": "art arda"
+  },
+  {
+    "wrong": "birarada",
+    "correct": "bir arada"
+  },
+  {
+    "wrong": "birşey",
+    "correct": "bir şey"
+  },
+  {
+    "wrong": "çevrimiçi",
+    "correct": "çevrim içi"
+  },
+  {
+    "wrong": "döküman",
+    "correct": "doküman"
+  },
+  {
+    "wrong": "elele",
+    "correct": "el ele"
+  },
+  {
+    "wrong": "espiri",
+    "correct": "espri"
+  },
+  {
+    "wrong": "farketmek",
+    "correct": "fark etmek"
+  },
+  {
+    "wrong": "haftaiçi",
+    "correct": "hafta içi"
+  },
+  {
+    "wrong": "haketmek",
+    "correct": "hak etmek"
+  },
+  {
+    "wrong": "heralde",
+    "correct": "herhâlde"
+  },
+  {
+    "wrong": "herbiri",
+    "correct": "her biri"
+  },
+  {
+    "wrong": "hiçkimse",
+    "correct": "hiç kimse"
+  },
+  {
+    "wrong": "iddaa",
+    "correct": "iddia"
+  },
+  {
+    "wrong": "insiyatif",
+    "correct": "inisiyatif"
+  },
+  {
+    "wrong": "kareografi",
+    "correct": "koreografi"
+  },
+  {
+    "wrong": "klüp",
+    "correct": "kulüp"
+  },
+  {
+    "wrong": "madem ki",
+    "correct": "mademki"
+  },
+  {
+    "wrong": "madur",
+    "correct": "mağdur"
+  },
+  {
+    "wrong": "makina",
+    "correct": "makine"
+  },
+  {
+    "wrong": "metod",
+    "correct": "metot"
+  },
+  {
+    "wrong": "müsade",
+    "correct": "müsaade"
+  },
+  {
+    "wrong": "müstehak",
+    "correct": "müstahak"
+  },
+  {
+    "wrong": "burda",
+    "correct": "burada"
+  },
+  {
+    "wrong": "orjinal",
+    "correct": "orijinal"
+  },
+  {
+    "wrong": "sarfetmek",
+    "correct": "sarf etmek"
+  },
+  {
+    "wrong": "sohpet",
+    "correct": "sohbet"
+  },
+  {
+    "wrong": "tabi ki",
+    "correct": "tabii ki"
+  },
+  {
+    "wrong": "terketmek",
+    "correct": "terk etmek"
+  },
+  {
+    "wrong": "tesbit",
+    "correct": "tespit"
+  },
+  {
+    "wrong": "traş",
+    "correct": "tıraş"
+  },
+  {
+    "wrong": "vaz geçmek",
+    "correct": "vazgeçmek"
+  },
+  {
+    "wrong": "yanısıra",
+    "correct": "yanı sıra"
+  },
+  {
+    "wrong": "yanyana",
+    "correct": "yan yana"
+  },
+  {
+    "wrong": "bir kaç",
+    "correct": "birkaç"
+  },
+  {
+    "wrong": "herşey",
+    "correct": "her şey"
+  },
+  {
+    "wrong": "herzaman",
+    "correct": "her zaman"
+  },
+  {
+    "wrong": "hiç bir",
+    "correct": "hiçbir"
+  },
+  {
+    "wrong": "hoşgeldin",
+    "correct": "hoş geldin"
+  },
+  {
+    "wrong": "hoşçakal",
+    "correct": "hoşça kal"
+  },
+  {
+    "wrong": "sağol",
+    "correct": "sağ ol"
+  },
+  {
+    "wrong": "baş sağlığı",
+    "correct": "başsağlığı"
+  },
+  {
+    "wrong": "hergün",
+    "correct": "her gün"
+  },
+  {
+    "wrong": "haftasonu",
+    "correct": "hafta sonu"
+  },
+  {
+    "wrong": "yıldönümü",
+    "correct": "yıl dönümü"
+  },
+  {
+    "wrong": "şuan",
+    "correct": "şu an"
+  },
+  {
+    "wrong": "alış veriş",
+    "correct": "alışveriş"
+  },
+  {
+    "wrong": "gök kuşağı",
+    "correct": "gökkuşağı"
+  },
+  {
+    "wrong": "göz yaşı",
+    "correct": "gözyaşı"
+  },
+  {
+    "wrong": "gece kondu",
+    "correct": "gecekondu"
+  },
+  {
+    "wrong": "hastahane",
+    "correct": "hastane"
+  },
+  {
+    "wrong": "dakka",
+    "correct": "dakika"
+  },
+  {
+    "wrong": "şöför",
+    "correct": "şoför"
+  },
+  {
+    "wrong": "herkez",
+    "correct": "herkes"
+  },
+  {
+    "wrong": "maydonoz",
+    "correct": "maydanoz"
+  },
+  {
+    "wrong": "tomates",
+    "correct": "domates"
+  },
+  {
+    "wrong": "çukulata",
+    "correct": "çikolata"
+  },
+  {
+    "wrong": "poğoça",
+    "correct": "poğaça"
+  },
+  {
+    "wrong": "fotograf",
+    "correct": "fotoğraf"
+  },
+  {
+    "wrong": "matamatik",
+    "correct": "matematik"
+  },
+  {
+    "wrong": "elektirik",
+    "correct": "elektrik"
+  },
+  {
+    "wrong": "enerci",
+    "correct": "enerji"
+  },
+  {
+    "wrong": "palyanço",
+    "correct": "palyaço"
+  },
+  {
+    "wrong": "pisiklet",
+    "correct": "bisiklet"
+  },
+  {
+    "wrong": "cant",
+    "correct": "jant"
+  },
+  {
+    "wrong": "alarım",
+    "correct": "alarm"
+  },
+  {
+    "wrong": "yanlız",
+    "correct": "yalnız"
+  },
+  {
+    "wrong": "yalnış",
+    "correct": "yanlış"
+  },
+  {
+    "wrong": "çünki",
+    "correct": "çünkü"
+  },
+  {
+    "wrong": "ıstırap",
+    "correct": "ızdırap"
+  },
+  {
+    "wrong": "serbes",
+    "correct": "serbest"
+  },
+  {
+    "wrong": "malesef",
+    "correct": "maalesef"
+  },
+  {
+    "wrong": "süpriz",
+    "correct": "sürpriz"
+  },
+  {
+    "wrong": "çarşanba",
+    "correct": "çarşamba"
+  },
+  {
+    "wrong": "seyehat",
+    "correct": "seyahat"
+  },
+  {
+    "wrong": "gaste",
+    "correct": "gazete"
+  },
+  {
+    "wrong": "ezane",
+    "correct": "eczane"
+  },
+  {
+    "wrong": "meyva",
+    "correct": "meyve"
+  },
+  {
+    "wrong": "kolanya",
+    "correct": "kolonya"
+  },
+  {
+    "wrong": "melemen",
+    "correct": "menemen"
+  },
+  {
+    "wrong": "kokariç",
+    "correct": "kokoreç"
+  },
+  {
+    "wrong": "proğram",
+    "correct": "program"
+  },
+  {
+    "wrong": "filim",
+    "correct": "film"
+  },
+  {
+    "wrong": "vürüs",
+    "correct": "virüs"
+  },
+  {
+    "wrong": "artiz",
+    "correct": "artist"
+  },
+  {
+    "wrong": "röpörtaj",
+    "correct": "röportaj"
+  },
+  {
+    "wrong": "gıramer",
+    "correct": "gramer"
+  },
+  {
+    "wrong": "grib",
+    "correct": "grip"
+  },
+  {
+    "wrong": "tanpon",
+    "correct": "tampon"
+  },
+  {
+    "wrong": "pisikoloji",
+    "correct": "psikoloji"
+  },
+  {
+    "wrong": "büsküvi",
+    "correct": "bisküvi"
+  },
+  {
+    "wrong": "lavobo",
+    "correct": "lavabo"
+  },
+  {
+    "wrong": "süeter",
+    "correct": "süveter"
+  },
+  {
+    "wrong": "ataç",
+    "correct": "ataş"
+  },
+  {
+    "wrong": "ilk okul",
+    "correct": "ilkokul"
+  },
+  {
+    "wrong": "ana okulu",
+    "correct": "anaokulu"
+  },
+  {
+    "wrong": "ilk öğretim",
+    "correct": "ilköğretim"
+  },
+  {
+    "wrong": "orta öğretim",
+    "correct": "ortaöğretim"
+  },
+  {
+    "wrong": "baş hekim",
+    "correct": "başhekim"
+  },
+  {
+    "wrong": "baş hemşire",
+    "correct": "başhemşire"
+  },
+  {
+    "wrong": "huzur evi",
+    "correct": "huzurevi"
+  },
+  {
+    "wrong": "basım evi",
+    "correct": "basımevi"
+  },
+  {
+    "wrong": "ay çiçeği",
+    "correct": "ayçiçeği"
+  },
+  {
+    "wrong": "hanım eli",
+    "correct": "hanımeli"
+  },
+  {
+    "wrong": "kahve rengi",
+    "correct": "kahverengi"
+  },
+  {
+    "wrong": "su çiçeği",
+    "correct": "suçiçeği"
+  },
+  {
+    "wrong": "vurdum duymaz",
+    "correct": "vurdumduymaz"
+  },
+  {
+    "wrong": "git gide",
+    "correct": "gitgide"
+  },
+  {
+    "wrong": "aç gözlü",
+    "correct": "açgözlü"
+  },
+  {
+    "wrong": "saf kan",
+    "correct": "safkan"
+  },
+  {
+    "wrong": "bir çok",
+    "correct": "birçok"
+  },
+  {
+    "wrong": "pekçok",
+    "correct": "pek çok"
+  },
+  {
+    "wrong": "bir az",
+    "correct": "biraz"
+  },
+  {
+    "wrong": "her hangi",
+    "correct": "herhangi"
+  },
+  {
+    "wrong": "hiç biri",
+    "correct": "hiçbiri"
+  },
+  {
+    "wrong": "bir birine",
+    "correct": "birbirine"
+  },
+  {
+    "wrong": "af etmek",
+    "correct": "affetmek"
+  },
+  {
+    "wrong": "his etmek",
+    "correct": "hissetmek"
+  },
+  {
+    "wrong": "red etmek",
+    "correct": "reddetmek"
+  },
+  {
+    "wrong": "kayıp olmak",
+    "correct": "kaybolmak"
+  },
+  {
+    "wrong": "emir etmek",
+    "correct": "emretmek"
+  },
+  {
+    "wrong": "sabır etmek",
+    "correct": "sabretmek"
+  },
+  {
+    "wrong": "şükür etmek",
+    "correct": "şükretmek"
+  },
+  {
+    "wrong": "zan etmek",
+    "correct": "zannetmek"
+  },
+  {
+    "wrong": "hal etmek",
+    "correct": "halletmek"
+  },
+  {
+    "wrong": "kabuletmek",
+    "correct": "kabul etmek"
+  },
+  {
+    "wrong": "arzetmek",
+    "correct": "arz etmek"
+  },
+  {
+    "wrong": "notetmek",
+    "correct": "not etmek"
+  },
+  {
+    "wrong": "varolmak",
+    "correct": "var olmak"
+  },
+  {
+    "wrong": "yokolmak",
+    "correct": "yok olmak"
+  },
+  {
+    "wrong": "sözetmek",
+    "correct": "söz etmek"
+  },
+  {
+    "wrong": "önsöz",
+    "correct": "ön söz"
+  },
+  {
+    "wrong": "önyargı",
+    "correct": "ön yargı"
+  },
+  {
+    "wrong": "altyazı",
+    "correct": "alt yazı"
+  },
+  {
+    "wrong": "anadili",
+    "correct": "ana dili"
+  },
+  {
+    "wrong": "işbirliği",
+    "correct": "iş birliği"
+  },
+  {
+    "wrong": "işbölümü",
+    "correct": "iş bölümü"
+  },
+  {
+    "wrong": "dilbilgisi",
+    "correct": "dil bilgisi"
+  },
+  {
+    "wrong": "yerçekimi",
+    "correct": "yer çekimi"
+  },
+  {
+    "wrong": "yurtiçi",
+    "correct": "yurt içi"
+  },
+  {
+    "wrong": "yurtdışı",
+    "correct": "yurt dışı"
+  },
+  {
+    "wrong": "olağandışı",
+    "correct": "olağan dışı"
+  },
+  {
+    "wrong": "peşisıra",
+    "correct": "peşi sıra"
+  },
+  {
+    "wrong": "karayolu",
+    "correct": "kara yolu"
+  },
+  {
+    "wrong": "havayolu",
+    "correct": "hava yolu"
+  },
+  {
+    "wrong": "çevreyolu",
+    "correct": "çevre yolu"
+  },
+  {
+    "wrong": "geceyarısı",
+    "correct": "gece yarısı"
+  },
+  {
+    "wrong": "köpekbalığı",
+    "correct": "köpek balığı"
+  },
+  {
+    "wrong": "uğurböceği",
+    "correct": "uğur böceği"
+  },
+  {
+    "wrong": "çiğköfte",
+    "correct": "çiğ köfte"
+  },
+  {
+    "wrong": "kuruyemiş",
+    "correct": "kuru yemiş"
+  },
+  {
+    "wrong": "olağan üstü",
+    "correct": "olağanüstü"
+  },
+  {
+    "wrong": "akşam üstü",
+    "correct": "akşamüstü"
+  },
+  {
+    "wrong": "bilinç altı",
+    "correct": "bilinçaltı"
+  },
+  {
+    "wrong": "suç üstü",
+    "correct": "suçüstü"
+  },
+  {
+    "wrong": "yayın evi",
+    "correct": "yayınevi"
+  },
+  {
+    "wrong": "öğretmen evi",
+    "correct": "öğretmenevi"
+  },
+  {
+    "wrong": "konuk evi",
+    "correct": "konukevi"
+  },
+  {
+    "wrong": "baş rol",
+    "correct": "başrol"
+  },
+  {
+    "wrong": "baş kent",
+    "correct": "başkent"
+  },
+  {
+    "wrong": "baş parmak",
+    "correct": "başparmak"
+  },
+  {
+    "wrong": "kuzey doğu",
+    "correct": "kuzeydoğu"
+  },
+  {
+    "wrong": "okur yazar",
+    "correct": "okuryazar"
+  },
+  {
+    "wrong": "uyur gezer",
+    "correct": "uyurgezer"
+  },
+  {
+    "wrong": "yap boz",
+    "correct": "yapboz"
+  },
+  {
+    "wrong": "çek yat",
+    "correct": "çekyat"
+  },
+  {
+    "wrong": "ateş kes",
+    "correct": "ateşkes"
+  },
+  {
+    "wrong": "dedi kodu",
+    "correct": "dedikodu"
+  },
+  {
+    "wrong": "oldu bitti",
+    "correct": "oldubitti"
+  },
+  {
+    "wrong": "semiz otu",
+    "correct": "semizotu"
+  },
+  {
+    "wrong": "dere otu",
+    "correct": "dereotu"
+  },
+  {
+    "wrong": "eşortman",
+    "correct": "eşofman"
+  },
+  {
+    "wrong": "kiprik",
+    "correct": "kirpik"
+  },
+  {
+    "wrong": "kirbit",
+    "correct": "kibrit"
+  },
+  {
+    "wrong": "eşki",
+    "correct": "ekşi"
+  },
+  {
+    "wrong": "eksoz",
+    "correct": "egzoz"
+  },
+  {
+    "wrong": "entellektüel",
+    "correct": "entelektüel"
+  },
+  {
+    "wrong": "laboratuar",
+    "correct": "laboratuvar"
+  },
+  {
+    "wrong": "üniverste",
+    "correct": "üniversite"
+  },
+  {
+    "wrong": "tenefüs",
+    "correct": "teneffüs"
+  },
+  {
+    "wrong": "telaffus",
+    "correct": "telaffuz"
+  },
+  {
+    "wrong": "klavuz",
+    "correct": "kılavuz"
+  },
+  {
+    "wrong": "karnıbahar",
+    "correct": "karnabahar"
+  },
+  {
+    "wrong": "sandoviç",
+    "correct": "sandviç"
+  },
+  {
+    "wrong": "aferim",
+    "correct": "aferin"
+  },
+  {
+    "wrong": "mahçup",
+    "correct": "mahcup"
+  },
+  {
+    "wrong": "muhattap",
+    "correct": "muhatap"
+  },
+  {
+    "wrong": "müraacat",
+    "correct": "müracaat"
+  },
+  {
+    "wrong": "acenta",
+    "correct": "acente"
+  },
+  {
+    "wrong": "asvalt",
+    "correct": "asfalt"
+  },
+  {
+    "wrong": "şarz",
+    "correct": "şarj"
+  },
+  {
+    "wrong": "şohben",
+    "correct": "şofben"
+  },
+  {
+    "wrong": "pardesü",
+    "correct": "pardösü"
+  },
+  {
+    "wrong": "fasülye",
+    "correct": "fasulye"
+  }
 ];
 // =====================================================================
 
@@ -540,9 +1233,9 @@ let nextGateZ = -25;
 let pendingPairs = [];
 
 // Lane X positions
-const LANE_LEFT = -2.2;
-const LANE_RIGHT = 2.2;
-const LANE_MID = 0;
+const LANE_LEFT = -1.6;
+const LANE_RIGHT = 1.6;
+
 
 const canvas = document.getElementById('canvas');
 const hudEl = document.getElementById('hud');
@@ -843,10 +1536,10 @@ function toggleMute() {
 // ---- Three.js Setup ----
 function initThree() {
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x0a0a1a, 20, 55);
-  scene.background = new THREE.Color(0x0a0a1a);
+  scene.fog = new THREE.Fog(0xc6dfe7, 32, 92);
+  scene.background = new THREE.Color(0xc6dfe7);
 
-  camera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 80);
+  camera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 120);
   camera.position.set(0, 3.5, 7);
   camera.lookAt(0, 1, -8);
 
@@ -859,43 +1552,47 @@ function initThree() {
   setupLights();
 }
 
-function buildScene() {
-  // Road tiles (pool of 10)
-  const roadMat = new THREE.MeshPhongMaterial({ color: 0x151530, shininess: 60 });
-  for (let i = 0; i < 10; i++) {
-    const geo = new THREE.BoxGeometry(7, 0.18, 8);
-    const tile = new THREE.Mesh(geo, roadMat);
-    tile.position.set(0, -0.09, -i * 8 + 20);
-    scene.add(tile);
-    roadTiles.push(tile);
-
-    // Neon lane lines
-    addLaneLine(tile.position.z);
-  }
-
-  // Background buildings/pillars
-  for (let i = 0; i < 20; i++) {
-    const side = i % 2 === 0 ? 1 : -1;
-    const geo = new THREE.BoxGeometry(1.2 + Math.random(), 4 + Math.random() * 8, 1.2);
-    const hue = Math.random() > 0.5 ? 0x0a1a3a : 0x1a0a2a;
-    const mat = new THREE.MeshPhongMaterial({ color: hue, emissive: new THREE.Color(Math.random() > 0.5 ? 0x001133 : 0x110033) });
-    const b = new THREE.Mesh(geo, mat);
-    b.position.set(side * (5.5 + Math.random() * 3), 0, -i * 5 + 10);
-    scene.add(b);
-    bgObjects.push(b);
-  }
-
-  buildPlayer();
+function box(parent, w, h, d, color, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({color}));
+  mesh.position.set(x,y,z); parent.add(mesh); return mesh;
 }
-
-function addLaneLine(z) {
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0x0044ff });
-  const lineGeo = new THREE.BoxGeometry(0.06, 0.05, 8);
-  [-2.2, 0, 2.2, -3.5, 3.5].forEach(x => {
-    const l = new THREE.Mesh(lineGeo, lineMat);
-    l.position.set(x, 0.01, z);
-    scene.add(l);
-  });
+function buildScene() {
+  // A continuous two-lane neighbourhood street; all markings move with the road.
+  for (let i=0;i<12;i++) {
+    const tile = new THREE.Group(); tile.position.z = 20-i*8;
+    box(tile,6.4,.18,8,0x555b60,0,-.09,0);
+    box(tile,.09,.012,3.6,0xf5ebd5,0,.015,0);
+    [-1,1].forEach(side=>{
+      box(tile,.12,.015,8,0xf8f2db,side*3.06,.012,0);
+      box(tile,2.4,.26,8,0xd5ccba,side*4.4,.03,0);
+      box(tile,.18,.34,8,0xeee6d5,side*3.28,.03,0);
+      for(let j=0;j<4;j++) box(tile,2.35,.01,.025,0xbab3a5,side*4.4,.17,j*2-3);
+      box(tile,22,.12,8,0x8d9e6b,side*16.6,-.07,0);
+    });
+    scene.add(tile); roadTiles.push(tile);
+  }
+  const colors=[0xe8c6aa,0xd8ddd1,0xe5d9bb,0xaebfc6,0xd9b0a0];
+  for(let i=0;i<18;i++) {
+    const g=new THREE.Group(), side=i%2?1:-1, h=4.5+(i%4)*1.15;
+    g.position.set(side*8,0,12-Math.floor(i/2)*12);
+    box(g,4.8,h,7,colors[i%colors.length],0,h/2,0);
+    box(g,5,.25,7.2,0xb47153,0,h,0);
+    for(let row=0;row<Math.floor(h/1.5);row++) for(let col=0;col<3;col++){
+      box(g,.06,.95,1.05,0xf7f3e9,-side*2.43,1.05+row*1.5,col*2-2);
+      box(g,.08,.74,.82,0x688e9e,-side*2.47,1.05+row*1.5,col*2-2);
+    }
+    box(g,.12,1.8,1,0x6c655d,-side*2.46,.9,2.8);
+    // Street tree and planter.
+    box(g,.95,.35,.95,0xb3a28a,-side*3.5,.18,-2);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.1,.15,2,7),makeMat(0x806346));
+    trunk.position.set(-side*3.5,1.25,-2);g.add(trunk);
+    const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,1),makeMat(i%3?0x527e4d:0x749155));
+    crown.position.set(-side*3.5,2.8,-2);g.add(crown);
+    box(g,.09,4,.09,0x505e61,-side*4.25,2,3.5);
+    box(g,.65,.15,.32,0xeee5cc,-side*4.05,4,3.5);
+    scene.add(g); bgObjects.push(g);
+  }
+  buildPlayer();
 }
 
 function makeMat(color, emissive = 0x000000, shininess = 55) {
@@ -1007,46 +1704,34 @@ function buildPlayer() {
     playerParts[side < 0 ? 'legL' : 'legR'] = leg;
   });
 
-  const glowGeo = new THREE.RingGeometry(0.35, 0.66, 24);
-  const glowMat = new THREE.MeshBasicMaterial({ color: outfit.shirt, side: THREE.DoubleSide, transparent: true, opacity: 0.28 });
-  const glow = new THREE.Mesh(glowGeo, glowMat);
-  glow.rotation.x = -Math.PI / 2;
-  glow.position.y = 0.02;
-  group.add(glow);
-  playerParts.glow = glow;
-
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(.48,24),new THREE.MeshBasicMaterial({color:0x263238,transparent:true,opacity:.22,depthWrite:false}));
+  shadow.rotation.x=-Math.PI/2; shadow.position.y=.025; shadow.scale.y=.7; group.add(shadow);
+  group.rotation.y=Math.PI;
   group.position.set(playerX || 0, 0, 3);
   scene.add(group);
   player = group;
 }
 
 function setupLights() {
-  const ambient = new THREE.AmbientLight(0x222244, 1.2);
-  scene.add(ambient);
-
-  const dir = new THREE.DirectionalLight(0x8888ff, 1.5);
-  dir.position.set(5, 10, 5);
-  scene.add(dir);
-
-  const neon1 = new THREE.PointLight(0x00ffff, 2, 15);
-  neon1.position.set(-4, 3, 0);
-  scene.add(neon1);
-
-  const neon2 = new THREE.PointLight(0xff00ff, 2, 15);
-  neon2.position.set(4, 3, -5);
-  scene.add(neon2);
+  scene.add(new THREE.HemisphereLight(0xe2f3ff,0xa69a7e,2));
+  const sun=new THREE.DirectionalLight(0xffedce,2.2);
+  sun.position.set(-8,16,6);scene.add(sun);
 }
 
 // ---- Gate System ----
 function pickWordPair() {
   if (pendingPairs.length === 0) {
-    // Shuffle a fresh batch
-    const shuffled = [...WORD_PAIRS].sort(() => Math.random() - 0.5);
+    const shuffled = [...WORD_PAIRS];
+    for(let i=shuffled.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+    }
+    if(WORD_PAIRS.indexOf(shuffled[shuffled.length-1])===lastWordIndex){
+      [shuffled[0],shuffled[shuffled.length-1]]=[shuffled[shuffled.length-1],shuffled[0]];
+    }
     pendingPairs = shuffled;
   }
-  let pair;
-  // Avoid last used
-  do { pair = pendingPairs.pop(); } while (pendingPairs.length > 0 && WORD_PAIRS.indexOf(pair) === lastWordIndex);
+  const pair = pendingPairs.pop();
   lastWordIndex = WORD_PAIRS.indexOf(pair);
   return pair;
 }
@@ -1058,41 +1743,15 @@ function spawnGate(zPos) {
   const gateGroup = new THREE.Group();
   gateGroup.position.z = zPos;
 
-  // Gate frame L
+  // Each road tile spans a complete lane: there is no empty bypass lane.
   const makeFrame = (xPos, isCorrect, label) => {
     const g = new THREE.Group();
-    // Main arch — her iki kapı da aynı renk (cevap ipucu yok)
-    const archMat = new THREE.MeshPhongMaterial({
-      color: 0x1a1a3a,
-      emissive: 0x0a0a22,
-      transparent: true, opacity: 0.88, shininess: 80
-    });
-    const backGeo = new THREE.BoxGeometry(GATE_WIDTH, GATE_HEIGHT, 0.25);
-    const back = new THREE.Mesh(backGeo, archMat);
-    back.position.set(xPos, GATE_HEIGHT / 2, 0);
-    g.add(back);
-
-    // Border — her iki kapı aynı neon mavi/mor
-    const borderMat = new THREE.MeshBasicMaterial({ color: 0x8844ff });
-    const bTop = new THREE.Mesh(new THREE.BoxGeometry(GATE_WIDTH + 0.1, 0.12, 0.3), borderMat);
-    bTop.position.set(xPos, GATE_HEIGHT + 0.06, 0.05);
-    g.add(bTop);
-    const bBot = new THREE.Mesh(new THREE.BoxGeometry(GATE_WIDTH + 0.1, 0.12, 0.3), borderMat);
-    bBot.position.set(xPos, 0.06, 0.05);
-    g.add(bBot);
-    const bL = new THREE.Mesh(new THREE.BoxGeometry(0.12, GATE_HEIGHT + 0.2, 0.3), borderMat);
-    bL.position.set(xPos - GATE_WIDTH / 2 - 0.06, GATE_HEIGHT / 2, 0.05);
-    g.add(bL);
-    const bR = new THREE.Mesh(new THREE.BoxGeometry(0.12, GATE_HEIGHT + 0.2, 0.3), borderMat);
-    bR.position.set(xPos + GATE_WIDTH / 2 + 0.06, GATE_HEIGHT / 2, 0.05);
-    g.add(bR);
-
-    // Canvas-based text sprite — her iki kapı aynı renk paleti
     const sprite = makeTextSprite(label);
-    sprite.position.set(xPos, GATE_HEIGHT / 2 + 0.1, 0.3);
-    g.add(sprite);
-
-    return { group: g, isCorrect, xPos, sprite, label };
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.2,2.1),
+      new THREE.MeshBasicMaterial({map:sprite.material.map,side:THREE.DoubleSide}));
+    sprite.material.dispose();
+    panel.rotation.x=-Math.PI/2;panel.position.set(xPos,.035,0);g.add(panel);
+    return {group:g,isCorrect,xPos,label,panel};
   };
 
   const leftData = makeFrame(LANE_LEFT, !correctOnRight, correctOnRight ? pair.wrong : pair.correct);
@@ -1113,8 +1772,8 @@ function spawnGate(zPos) {
 
 function makeTextSprite(text) {
   // Her iki kapı için aynı renk — cevap ipucu yok
-  const color = '#e8e0ff';
-  const bgColor = '#15123a';
+  const color = '#263c43';
+  const bgColor = '#fff2cb';
   const cv = document.createElement('canvas');
   cv.width = 640; cv.height = 220;
   const ctx = cv.getContext('2d');
@@ -1127,8 +1786,7 @@ function makeTextSprite(text) {
   ctx.font = 'bold 82px Segoe UI, Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.shadowColor = '#aa88ff';
-  ctx.shadowBlur = 24;
+  ctx.shadowBlur = 0;
   ctx.fillText(text, 320, 114, 610);
 
   const tex = new THREE.CanvasTexture(cv);
@@ -1138,6 +1796,13 @@ function makeTextSprite(text) {
   return sprite;
 }
 
+function disposeObject(object) {
+  scene.remove(object);
+  object.traverse(child=>{if(child.geometry)child.geometry.dispose();if(child.material){
+    const materials=Array.isArray(child.material)?child.material:[child.material];
+    materials.forEach(m=>{if(m.map)m.map.dispose();m.dispose();});
+  }});
+}
 // ---- Particles ----
 function spawnParticles(x, y, z, color, count = 12) {
   for (let i = 0; i < count; i++) {
@@ -1228,6 +1893,7 @@ function handleWrong() {
 
 function endGame() {
   gameState = 'gameover';
+  document.getElementById('choice-hud').hidden = true;
   stopMusic();
   if (score > bestScore) { bestScore = score; localStorage.setItem('kk_best', bestScore); }
 
@@ -1246,7 +1912,7 @@ function endGame() {
     gameoverScreen.style.transition = 'opacity 0.5s';
     requestAnimationFrame(() => {
       gameoverScreen.style.opacity = '1';
-      startCountdown();
+      // Wait for the learner to choose when to restart.
     });
   }, 600);
 
@@ -1259,8 +1925,8 @@ function endGame() {
 }
 
 // ---- Controls ----
-const LANES = [LANE_LEFT, LANE_MID, LANE_RIGHT];
-let currentLane = 1;
+const LANES = [LANE_LEFT, LANE_RIGHT];
+let currentLane = 0;
 let speedBoost = 0;
 const BOOST_AMOUNT = 0.12;
 const MAX_BOOST_SPEED = 0.42;
@@ -1275,7 +1941,7 @@ function moveLeft() {
 }
 function moveRight() {
   if (gameState !== 'playing') return;
-  if (currentLane < 2) currentLane++;
+  if (currentLane < LANES.length - 1) currentLane++;
   playerTargetX = LANES[currentLane];
 }
 
@@ -1297,8 +1963,7 @@ function isUiControl(target) {
 
 function setLaneFromClientX(clientX) {
   if (gameState !== 'playing') return;
-  const third = window.innerWidth / 3;
-  currentLane = Math.max(0, Math.min(2, Math.floor(clientX / third)));
+  currentLane = clientX < window.innerWidth / 2 ? 0 : 1;
   playerTargetX = LANES[currentLane];
 }
 
@@ -1307,7 +1972,6 @@ document.addEventListener('pointerdown', e => {
   e.preventDefault();
   dragControlActive = true;
   setLaneFromClientX(e.clientX);
-  speedUp();
 }, { passive: false });
 
 document.addEventListener('pointermove', e => {
@@ -1350,6 +2014,8 @@ function bindButtons() {
   const muteBtn = document.getElementById('mute-btn');
 
   bindCustomizer();
+  document.getElementById('left-choice').onclick = () => {if(gameState==='playing'){currentLane=0;playerTargetX=LANES[0];}};
+  document.getElementById('right-choice').onclick = () => {if(gameState==='playing'){currentLane=1;playerTargetX=LANES[1];}};
 
   if (btnStart) {
     btnStart.addEventListener('click', startGame);
@@ -1389,50 +2055,55 @@ function loop(ts) {
 
   // Move road tiles
   roadTiles.forEach(tile => {
-    tile.position.z += speed;
-    if (tile.position.z > 24) tile.position.z -= 80;
+    tile.position.z += speed * dt * 60;
+    if (tile.position.z > 24) tile.position.z -= 96;
   });
 
   // Move bg objects
   bgObjects.forEach(b => {
-    b.position.z += speed;
-    if (b.position.z > 20) b.position.z -= 100;
+    b.position.z += speed * dt * 60;
+    if (b.position.z > 24) b.position.z -= 108;
   });
 
   // Move gates
   gates.forEach(gate => {
-    gate.group.position.z += speed;
+    gate.group.position.z += speed * dt * 60;
   });
 
   // Spawn gates
-  nextGateZ += speed;
+  nextGateZ += speed * dt * 60;
   if (nextGateZ >= 0) {
     spawnGate(-50);
     nextGateZ = -GATE_SPACING;
   }
 
-  // Collision detection
+  // Crossing is always scored once. The logical selected lane is authoritative,
+  // even during the short visual transition between lanes.
   gates.forEach(gate => {
-    if (gate.passed) return;
-    const gz = gate.group.position.z;
-    if (gz > 2 && gz < 6) {
-      gate.passed = true;
-      const px = player.position.x;
-      const leftHit = Math.abs(px - gate.left.xPos) < GATE_WIDTH / 2 + 0.3;
-      const rightHit = Math.abs(px - gate.right.xPos) < GATE_WIDTH / 2 + 0.3;
-
-      if (leftHit) {
-        gate.left.isCorrect ? handleCorrect() : handleWrong();
-      } else if (rightHit) {
-        gate.right.isCorrect ? handleCorrect() : handleWrong();
-      }
-    }
+    if (gameState !== 'playing' || gate.passed || gate.group.position.z < player.position.z) return;
+    gate.passed = true;
+    const chosen = currentLane === 0 ? gate.left : gate.right;
+    player.position.x = playerTargetX = LANES[currentLane];
+    chosen.isCorrect ? handleCorrect() : handleWrong();
+    const correct = gate.left.isCorrect ? gate.left.label : gate.right.label;
+    const feedback = document.getElementById('answer-feedback');
+    feedback.textContent = chosen.isCorrect ? '✓ ' + correct : 'Doğru yazım: ' + correct;
+    feedback.className = chosen.isCorrect ? 'correct' : 'wrong';
   });
+  const upcoming = gates.find(g=>!g.passed);
+  document.getElementById('choices').hidden = !upcoming;
+  if(upcoming) {
+    ['left-choice','right-choice'].forEach((id,i)=>{
+      const el=document.getElementById(id);
+      el.textContent=(i===0?'← ':'')+(i===0?upcoming.left.label:upcoming.right.label)+(i===1?' →':'');
+      el.classList.toggle('selected',currentLane===i);
+    });
+  }
 
   // Remove old gates
   for (let i = gates.length - 1; i >= 0; i--) {
     if (gates[i].group.position.z > 15) {
-      scene.remove(gates[i].group);
+      disposeObject(gates[i].group);
       gates.splice(i, 1);
     }
   }
@@ -1448,7 +2119,7 @@ function loop(ts) {
     p.mesh.material.opacity = p.life;
     p.mesh.material.transparent = true;
     if (p.life <= 0) {
-      scene.remove(p.mesh);
+      disposeObject(p.mesh);
       particles.splice(i, 1);
     }
   }
@@ -1474,7 +2145,7 @@ function loop(ts) {
     shakeY = (Math.random() - 0.5) * shakeAmt;
   }
 
-  camera.position.set(player.position.x * 0.3 + shakeX, 3.5 + shakeY, 7);
+  camera.position.set(player.position.x * 0.15 + shakeX, 4.8 + shakeY, window.innerWidth < 600 ? 10 : 8);
   camera.lookAt(player.position.x * 0.15, 1, -8);
 
   renderer.render(scene, camera);
@@ -1486,6 +2157,7 @@ function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
+  camera.fov = w < 600 ? 78 : 65;
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', onResize);
@@ -1498,26 +2170,29 @@ function startGame() {
   // Reset state
   score = 0; lives = 3; combo = 0; correctCount = 0; wrongCount = 0;
   speed = baseSpeed; runCycle = 0;
-  currentLane = 1; playerX = 0; playerTargetX = 0; dragControlActive = false;
+  currentLane = 0; playerX = LANE_LEFT; playerTargetX = LANE_LEFT; speedBoost = 0; dragControlActive = false;
   shakeTimer = 0;
   nextGateZ = -GATE_SPACING;
   pendingPairs = [];
   lastWordIndex = -1;
 
   // Clear gates
-  gates.forEach(g => scene.remove(g.group));
+  gates.forEach(g => disposeObject(g.group));
   gates.length = 0;
-  particles.forEach(p => scene.remove(p.mesh));
+  particles.forEach(p => disposeObject(p.mesh));
   particles.length = 0;
 
-  player.position.set(0, 0, 3);
+  player.position.set(LANE_LEFT, 0, 3);
 
   startScreen.classList.add('hidden');
   gameoverScreen.classList.add('hidden');
   hudEl.style.display = 'flex';
   touchHint.style.display = 'block';
-  touchHint.textContent = 'Sürükle = şerit değiştir  |  Basılı tut = ⚡ hızlan';
+  touchHint.textContent = '← → veya ekranın sol / sağ yarısı · ↑ hızlan';
 
+  spawnGate(-30);
+  document.getElementById('answer-feedback').textContent = '';
+  document.getElementById('choice-hud').hidden = false;
   updateHUD();
   gameState = 'playing';
   startMusic();
@@ -1536,6 +2211,7 @@ function showStart() {
   stopMusic();
   startScreen.classList.remove('hidden');
   gameState = 'menu';
+  document.getElementById('choice-hud').hidden = true;
 }
 
 // ---- Init ----
@@ -1574,3 +2250,4 @@ init();
 </script>
 </body>
 </html>
+
