@@ -18,7 +18,7 @@
     background: #0a0a1a;
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   }
-  #canvas { display: block; width: 100%; height: 100%; }
+  #canvas { display: block; width: 100%; height: 100%; touch-action:none; }
   #ui {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 10;
@@ -259,6 +259,15 @@ html,body{background:#c6dfe7}
 #score-display,#combo-display,#combo-msg{ text-shadow:0 2px 4px #0005 }
 #touch-hint{color:#fff;background:#273d44dc;padding:10px 15px;border-radius:20px;bottom:22px;width:max-content;max-width:75vw}
 #mute-btn{background:#273d44dc}
+#hud #mute-btn {position:static;flex:0 0 38px;width:38px;height:38px;margin:0 0 0 2px;
+  background:#233e46db;border:1px solid #ffffff66;box-shadow:none;z-index:30;touch-action:manipulation;}
+#hud #combo-display {min-width:52px;}
+#hud {gap:6px;}
+@media(max-width:390px){#hud{padding:12px 10px;}#lives-display{gap:1px;}#hud #combo-display{min-width:34px;font-size:13px;}}
+#action-buttons #btn-fast.boosting{background:#f4a635;color:#2e2820;
+  border-color:#fff2bc;box-shadow:0 0 0 5px #ffcf6490,0 4px 16px #0006;transform:scale(1.04)}
+#action-buttons #btn-fast{transition:background .15s,transform .15s,box-shadow .15s}
+
 #choice-hud{position:fixed;top:80px;left:50%;transform:translateX(-50%);width:min(550px,94vw);z-index:25;text-align:center}
 .question-label{font-size:11px;letter-spacing:2px;font-weight:800;color:#294e48;margin-bottom:8px}
 #choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -310,6 +319,7 @@ html,body{background:#c6dfe7}
       <span class="heart">❤️</span>
     </div>
     <div id="combo-display"></div>
+    <button type="button" id="mute-btn" aria-label="Müziği ve efektleri kapat">🔊</button>
   </div>
   <div id="combo-msg"></div>
   <div id="flash"></div>
@@ -348,8 +358,9 @@ html,body{background:#c6dfe7}
     </div>
   </div>
   <button class="btn btn-primary" id="btn-start">BAŞLA</button>
+  <div class="screen-sub" style="font-size:12px;margin:2px auto;">Mobil sürüm 1.2 · Ses için cihazın medya sesini kontrol et.</div>
   <div class="screen-sub" style="font-size:clamp(11px,2.5vw,14px); margin-top:4px;">
-    📱 Sol / sağ seç · ZIPLA tuşu &nbsp;|&nbsp; ⌨️ ← →, ↑ / Boşluk, Shift
+    📱 Sağa/sola kaydır: şerit · Yukarı kaydır: zıpla · HIZLAN: basılı tut veya dokun
   </div>
 </div>
 
@@ -370,7 +381,6 @@ html,body{background:#c6dfe7}
   <button class="btn btn-primary" id="btn-menu">ANA MENÜ</button>
 </div>
 
-<div id="mute-btn">🔊</div>
 <div id="touch-hint"></div>
 <div id="speed-hint" style="
   position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -381,7 +391,7 @@ html,body{background:#c6dfe7}
 "></div>
 
 <!-- Oyun sırasındaki eylem düğmeleri -->
-<div id="action-buttons"><button id="btn-jump" type="button">↥ ZIPLA</button><button id="btn-fast" type="button">⚡ HIZLAN</button></div>
+<div id="action-buttons"><button id="btn-jump" type="button">↥ ZIPLA</button><button id="btn-fast" type="button" aria-pressed="false">⚡ HIZLAN</button></div>
 <div id="obstacle-warning" hidden>⚠️ Engel: şerit değiştir veya zıpla!</div>
 
 <script>
@@ -1254,18 +1264,44 @@ const gameoverScreen = document.getElementById('gameover-screen');
 const touchHint = document.getElementById('touch-hint');
 
 // ---- Audio Engine ----
-let musicNodes = {}; // tuttuğumuz node referansları
+let musicNodes = {};
 let musicStarted = false;
 let masterGain = null;
 
+// Safari/iOS may route a Web Audio context through the silent-switch audio channel.
+// Playback audio sessions are intended for music; feature-detect everywhere else.
+function setPlaybackAudioSession() {
+  try {
+    if (navigator.audioSession && navigator.audioSession.type !== 'playback') {
+      navigator.audioSession.type = 'playback';
+    }
+  } catch (_) {}
+}
 function getAudioCtx() {
-  if (!audioCtx) {
+  if (!audioCtx || audioCtx.state === 'closed') {
+    if (!(window.AudioContext || window.webkitAudioContext)) return null;
+    setPlaybackAudioSession();
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = muted ? 0 : 0.7;
+    masterGain.gain.value = muted ? 0 : 0.82;
     masterGain.connect(audioCtx.destination);
   }
   return audioCtx;
+}
+// Invoke synchronously from a touch/pointer/click gesture, without awaiting rendering.
+// A tiny buffer source primes iOS Safari's initially suspended audio engine.
+function unlockAudioFromGesture() {
+  setPlaybackAudioSession();
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    if (ctx.state !== 'running') ctx.resume().catch(()=>{});
+    const source = ctx.createBufferSource();
+    source.buffer = ctx.createBuffer(1,1,ctx.sampleRate);
+    source.connect(masterGain);
+    source.start(0);
+    source.onended=()=>source.disconnect();
+  } catch (_) {}
 }
 
 // Genel tek ton çalma
@@ -1273,6 +1309,10 @@ function playTone(freq, type, duration, vol = 0.3, target) {
   if (muted) return;
   try {
     const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') {
+      unlockAudioFromGesture();
+      if (!ctx) return;
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -1349,8 +1389,11 @@ function scheduleMusicStep(step,time) {
 }
 function startMusic() {
   if(musicStarted || !(window.AudioContext || window.webkitAudioContext))return;
-  const ctx=getAudioCtx();ctx.resume().catch(()=>{});musicStarted=true;
-  musicBus=ctx.createGain();musicBus.gain.value=.6;musicBus.connect(masterGain);
+  unlockAudioFromGesture();
+  const ctx=getAudioCtx();
+  if(!ctx)return;
+  musicStarted=true;
+  musicBus=ctx.createGain();musicBus.gain.value=.83;musicBus.connect(masterGain);
   musicStepIndex=0;nextMusicTime=ctx.currentTime+.05;
   musicInterval=setInterval(()=>{
     if(!musicStarted || ctx.state!=='running')return;
@@ -1366,8 +1409,16 @@ function stopMusic() {
   if(musicBus){const bus=musicBus;bus.gain.value=0;setTimeout(()=>bus.disconnect(),2200);musicBus=null;}
 }
 document.addEventListener('visibilitychange',()=>{
-  if(!audioCtx)return;
-  if(document.hidden)audioCtx.suspend();else if(gameState==='playing')audioCtx.resume();
+  if(document.hidden) { resetBoost(); return; }
+  if(gameState==='playing' && audioCtx){
+    setPlaybackAudioSession();
+    audioCtx.resume().catch(()=>{});
+    // Restart the scheduler clock if Safari stopped advancing in the background.
+    nextMusicTime=audioCtx.currentTime+.07;
+  }
+});
+window.addEventListener('pageshow',()=>{
+  if(gameState==='playing'&&audioCtx){setPlaybackAudioSession();audioCtx.resume().catch(()=>{});}
 });
 
 // ---- Countdown Restart ----
@@ -1432,10 +1483,11 @@ function playCombo() {
 
 function toggleMute() {
   muted = !muted;
-  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
-  if (audioCtx && masterGain) {
-    masterGain.gain.value = muted ? 0 : 0.7;
-  }
+  const button=document.getElementById('mute-btn');
+  button.textContent=muted?'🔇':'🔊';
+  button.setAttribute('aria-label',muted?'Müziği ve efektleri aç':'Müziği ve efektleri kapat');
+  if (!muted) unlockAudioFromGesture();
+  if(audioCtx && masterGain) masterGain.gain.value=muted?0:.82;
 }
 
 // ---- Three.js Setup ----
@@ -1861,6 +1913,7 @@ function endGame() {
   gameState = 'gameover';
   document.getElementById('choice-hud').hidden = true;
   document.getElementById('action-buttons').style.display='none';
+  resetBoost();turboRemaining=0;updateBoostAppearance();
   document.getElementById('obstacle-warning').hidden=true;
   stopMusic();
   if (score > bestScore) { bestScore = score; localStorage.setItem('kk_best', bestScore); }
@@ -1895,10 +1948,32 @@ function endGame() {
 
 // ---- Controls ----
 const LANES=[LANE_LEFT,LANE_RIGHT];
-let currentLane=0,speedBoost=0;
-const BOOST_AMOUNT=.12,MAX_BOOST_SPEED=.42;
-function speedUp(){if(gameState==='playing')speedBoost=1;}
-function resetBoost(){speedBoost=0;}
+let currentLane=0,speedBoost=0,turboRemaining=0;
+let boostPressedAt=0;
+let activeSwipe=null;
+const BOOST_AMOUNT=.20,MAX_BOOST_SPEED=.50;
+function updateBoostAppearance() {
+  const fast=document.getElementById('btn-fast');
+  if(!fast)return;
+  const active=speedBoost===1||turboRemaining>0;
+  fast.classList.toggle('boosting',active);
+  fast.setAttribute('aria-pressed',active?'true':'false');
+  fast.textContent=active?'⚡ TURBO!':'⚡ HIZLAN';
+}
+function speedUp(){
+  if(gameState!=='playing')return;
+  turboRemaining=0;
+  speedBoost=1;
+  boostPressedAt=performance.now();
+  updateBoostAppearance();
+}
+function resetBoost(tapTurbo=false) {
+  if(tapTurbo && speedBoost===1 && performance.now()-boostPressedAt<350 && gameState==='playing'){
+    turboRemaining=2.5; // quick tap: a short boost; holding: boost only while held
+  }
+  speedBoost=0;
+  updateBoostAppearance();
+}
 function jump(){
   if(gameState!=='playing'||jumpHeight>0||jumpVelocity>0)return;
   jumpVelocity=8.5;
@@ -1911,27 +1986,49 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')moveLeft();
   if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')moveRight();
   if((e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key===' ')&&!e.repeat)jump();
-  if(e.key==='Shift')speedUp();
+  if(e.key==='Shift'&&!e.repeat)speedUp();
 });
 document.addEventListener('keyup',e=>{if(e.key==='Shift')resetBoost();});
-window.addEventListener('blur',resetBoost);
+window.addEventListener('blur',()=>resetBoost());
 function isUiControl(target){return !!target.closest('button,#character-customizer');}
-function setLaneFromClientX(x) {
+function setLaneFromClientX(x){
   if(gameState!=='playing')return;
   currentLane=x<window.innerWidth/2?0:1;
   playerTargetX=LANES[currentLane];
 }
+// Upward swipe jumps; horizontal swipe selects a lane; short tap retains tap-to-lane.
 document.addEventListener('pointerdown',e=>{
-  if(isUiControl(e.target)||gameState!=='playing')return;
-  e.preventDefault();dragControlActive=true;setLaneFromClientX(e.clientX);
-},{passive:false});
+  if(isUiControl(e.target)||gameState!=='playing'||(e.pointerType==='mouse'&&e.button!==0))return;
+  activeSwipe={id:e.pointerId,x:e.clientX,y:e.clientY,action:null};
+  dragControlActive=true;
+},{passive:true});
 document.addEventListener('pointermove',e=>{
-  if(!dragControlActive||gameState!=='playing')return;
-  e.preventDefault();setLaneFromClientX(e.clientX);
+  if(!activeSwipe||activeSwipe.id!==e.pointerId||gameState!=='playing')return;
+  const dx=e.clientX-activeSwipe.x,dy=e.clientY-activeSwipe.y;
+  if(!activeSwipe.action){
+    if(dy< -38 && -dy>Math.abs(dx)*1.15){
+      activeSwipe.action='jump';jump();
+    }else if(Math.abs(dx)>34 && Math.abs(dx)>Math.abs(dy)*1.15){
+      activeSwipe.action='lane';dx<0?moveLeft():moveRight();
+    }
+  } else if(activeSwipe.action==='lane' && Math.abs(dx)>34){
+    dx<0?moveLeft():moveRight();
+  }
+  if(activeSwipe.action)e.preventDefault();
 },{passive:false});
-function stopDragControl(){dragControlActive=false;}
-document.addEventListener('pointerup',stopDragControl);
-document.addEventListener('pointercancel',stopDragControl);
+document.addEventListener('pointerup',e=>{
+  if(!activeSwipe||e.pointerId!==activeSwipe.id)return;
+  const dx=e.clientX-activeSwipe.x,dy=e.clientY-activeSwipe.y;
+  if(!activeSwipe.action){
+    if(dy< -38 && -dy>Math.abs(dx))jump();
+    else if(Math.abs(dx)>34 && Math.abs(dx)>Math.abs(dy))dx<0?moveLeft():moveRight();
+    else setLaneFromClientX(e.clientX);
+  }
+  activeSwipe=null;dragControlActive=false;
+});
+document.addEventListener('pointercancel',e=>{
+  if(activeSwipe?.id===e.pointerId){activeSwipe=null;dragControlActive=false;}
+});
 function bindCustomizer(){
   document.querySelectorAll('.option-buttons').forEach(group=>{
     const option=group.dataset.option;
@@ -1949,14 +2046,32 @@ function bindCustomizer(){
 }
 function bindButtons(){
   bindCustomizer();
-  document.getElementById('btn-start').addEventListener('click',startGame);
+  const start=document.getElementById('btn-start');
+  // Begin iOS audio unlock at pointerdown; startGame also resumes in its click.
+  start.addEventListener('pointerdown',()=>unlockAudioFromGesture());
+  start.addEventListener('click',startGame);
   document.getElementById('btn-restart').addEventListener('click',restartGame);
   document.getElementById('btn-menu').addEventListener('click',showStart);
   document.getElementById('mute-btn').addEventListener('click',toggleMute);
   document.getElementById('btn-jump').addEventListener('pointerdown',e=>{e.preventDefault();jump();});
   const fast=document.getElementById('btn-fast');
-  fast.addEventListener('pointerdown',e=>{e.preventDefault();speedUp();fast.setPointerCapture?.(e.pointerId);});
-  ['pointerup','pointercancel','lostpointercapture'].forEach(type=>fast.addEventListener(type,resetBoost));
+  fast.addEventListener('pointerdown',e=>{
+    e.preventDefault();speedUp();
+    try{fast.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  fast.addEventListener('pointerup',e=>{e.preventDefault();resetBoost(true);});
+  fast.addEventListener('pointercancel',()=>resetBoost());
+  fast.addEventListener('lostpointercapture',()=>{if(speedBoost)resetBoost();});
+  window.addEventListener('pointerup',e=>{
+    if(speedBoost && e.target!==fast)resetBoost();
+  });
+  // Older iOS versions without PointerEvent may still dispatch TouchEvents.
+  if(!window.PointerEvent){
+    fast.addEventListener('touchstart',e=>{e.preventDefault();speedUp();},{passive:false});
+    fast.addEventListener('touchend',e=>{e.preventDefault();resetBoost(true);},{passive:false});
+    document.getElementById('btn-jump').addEventListener('touchstart',e=>{e.preventDefault();jump();},{passive:false});
+  }
+  updateBoostAppearance();
 }
 // ---- Game Loop ----
 // ---- Game Loop ----
@@ -1974,8 +2089,10 @@ function loop(ts) {
   // Increase speed over time + player boost
   let targetSpeed = baseSpeed + correctCount * 0.0015;
   targetSpeed = Math.min(targetSpeed, 0.28);
-  if (speedBoost === 1) targetSpeed = Math.min(targetSpeed + BOOST_AMOUNT, MAX_BOOST_SPEED);
-  speed += (targetSpeed - speed) * 0.08;
+  if(turboRemaining>0)turboRemaining=Math.max(0,turboRemaining-dt);
+  if(speedBoost===1 || turboRemaining>0) targetSpeed=Math.min(targetSpeed+BOOST_AMOUNT,MAX_BOOST_SPEED);
+  speed += (targetSpeed - speed) * Math.min(1,dt*12);
+  updateBoostAppearance();
 
   // Move road tiles
   roadTiles.forEach(tile => {
@@ -2107,12 +2224,15 @@ window.addEventListener('orientationchange', () => setTimeout(onResize, 300));
 
 // ---- Game States ----
 function startGame() {
-  if (!THREE) return;
+  if(!THREE)return;
+  // Start/resume media while the user's Start/Restart tap is still active.
+  unlockAudioFromGesture();
 
   // Reset state
   score = 0; lives = 3; combo = 0; correctCount = 0; wrongCount = 0;
   speed = baseSpeed; runCycle = 0; jumpHeight=0; jumpVelocity=0;
-  currentLane = 0; playerX = LANE_LEFT; playerTargetX = LANE_LEFT; speedBoost = 0; dragControlActive = false;
+  currentLane=0;playerX=LANE_LEFT;playerTargetX=LANE_LEFT;speedBoost=0;turboRemaining=0;
+  dragControlActive=false;activeSwipe=null;updateBoostAppearance();
   shakeTimer = 0;
   nextGateZ = -GATE_SPACING;
   pendingPairs = [];
@@ -2132,7 +2252,7 @@ function startGame() {
   gameoverScreen.classList.add('hidden');
   hudEl.style.display = 'flex';
   touchHint.style.display = 'block';
-  touchHint.textContent = 'Şerit: ← → veya dokun · ↑ zıpla · Shift hız';
+  touchHint.textContent = 'Kaydır ← →: şerit · ↑: zıpla';
   document.getElementById('action-buttons').style.display='flex';
   document.getElementById('obstacle-warning').hidden=true;
 
@@ -2152,6 +2272,7 @@ function restartGame() {
 }
 
 function showStart() {
+  resetBoost();turboRemaining=0;updateBoostAppearance();
   stopCountdown();
   gameoverScreen.classList.add('hidden');
   stopMusic();
