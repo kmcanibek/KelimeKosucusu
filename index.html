@@ -267,6 +267,28 @@ html,body{background:#c6dfe7}
 #answer-feedback{display:inline-block;margin-top:10px;padding:7px 12px;border-radius:9px;background:#fffffff0;font-size:16px;font-weight:700;color:#246347}
 #answer-feedback:empty{display:none}#answer-feedback.wrong{color:#a5392b}
 @media(max-height:640px){#screen,#gameover-screen{justify-content:flex-start}.screen-title{font-size:38px}.screen-sub{margin:7px}.customizer{padding:8px;margin:4px}.eyebrow{margin-bottom:6px}#choice-hud{top:62px}}
+
+/* Dört seçenekli tur ve hareket kontrolleri */
+#choice-hud {pointer-events:auto;top:72px;}
+#choices button {position:relative;touch-action:manipulation;}
+#choices button.upper-option {background:#e6f1ff;border-color:#9fbed5;}
+#choices button.upper-option::before {content:'↥ ZIPLA';position:absolute;top:2px;left:8px;font:800 9px Segoe UI,Arial,sans-serif;color:#547999;}
+#choices button.lower-option::before {content:'● KOŞ';position:absolute;top:2px;left:8px;font:800 9px Segoe UI,Arial,sans-serif;color:#877a5b;}
+#choices.four-choices button {min-height:64px;padding:15px 4px 6px;}
+#choices button.selected {outline:3px solid #2e765e;outline-offset:1px;}
+#action-buttons {position:fixed;bottom:18px;right:18px;display:none;gap:9px;z-index:30;pointer-events:auto;}
+#action-buttons button {border:2px solid #fff9;min-height:62px;min-width:88px;border-radius:17px;
+  background:#244c44;color:white;font:800 15px Segoe UI,Arial,sans-serif;box-shadow:0 4px 14px #0005;
+  cursor:pointer;touch-action:none;user-select:none;}
+#action-buttons #btn-jump {background:#3276a9;}
+#action-buttons #btn-fast {background:#a45c1f;}
+#obstacle-warning {position:fixed;bottom:95px;left:50%;transform:translateX(-50%);
+  z-index:22;background:#623a25e8;color:#fff;font:800 13px Segoe UI,sans-serif;
+  border-radius:12px;padding:8px 12px;text-align:center;pointer-events:none;max-width:75vw;}
+#touch-hint {bottom:100px;left:12px;transform:none;max-width:42vw;padding:7px 9px;font-size:11px}
+@media(max-width:470px){#choice-hud {top:72px}#choices button{font-size:clamp(13px,3.5vw,17px)}
+ #action-buttons{right:10px;bottom:10px}#action-buttons button{min-width:76px;min-height:58px;font-size:13px}
+ #obstacle-warning{bottom:80px;max-width:95vw}#touch-hint{bottom:80px}}
 </style>
 </head>
 <body>
@@ -296,7 +318,7 @@ html,body{background:#c6dfe7}
 <!-- START SCREEN -->
 <div id="screen">
   <div class="eyebrow">MAHALLEDE BİR TUR</div><div class="screen-title">Kelime<br>Koşusu</div>
-  <div class="screen-sub">Mahallende koş, doğru yazımı seç.<br>İki şerit, iki kelime. 3 yanlışta oyun biter.</div>
+  <div class="screen-sub">Şehirde koş, doğru yazımı yakala! Her üçüncü turda dört seçenek var: üsttekilere zıplayarak ulaş.<br>Engellere çarpma, üç canını koru.</div>
   <div class="customizer" id="character-customizer">
     <div class="customizer-title">Karakterini seç</div>
     <div class="option-row">
@@ -327,7 +349,7 @@ html,body{background:#c6dfe7}
   </div>
   <button class="btn btn-primary" id="btn-start">BAŞLA</button>
   <div class="screen-sub" style="font-size:clamp(11px,2.5vw,14px); margin-top:4px;">
-    📱 Sol / sağ tarafa dokun &nbsp;|&nbsp; ⌨️ ← →
+    📱 Sol / sağ seç · ZIPLA tuşu &nbsp;|&nbsp; ⌨️ ← →, ↑ / Boşluk, Shift
   </div>
 </div>
 
@@ -337,7 +359,7 @@ html,body{background:#c6dfe7}
   <div class="stat-row">
     <div class="stat-box"><div class="stat-val" id="final-score">0</div><div class="stat-lbl">Puan</div></div>
     <div class="stat-box"><div class="stat-val" id="final-correct" style="color:#00ff88">0</div><div class="stat-lbl">Doğru</div></div>
-    <div class="stat-box"><div class="stat-val" id="final-wrong" style="color:#ff4466">0</div><div class="stat-lbl">Yanlış</div></div>
+    <div class="stat-box"><div class="stat-val" id="final-wrong" style="color:#ff4466">0</div><div class="stat-lbl">Yanlış</div></div><div class="stat-box"><div class="stat-val" id="final-hits">0</div><div class="stat-lbl">Engele çarpma</div></div>
   </div>
   <div id="best-score-line">🏆 En İyi: <span id="best-score-val">0</span></div>
   <button class="btn btn-secondary" id="btn-restart" style="position:relative;overflow:hidden;">
@@ -358,28 +380,9 @@ html,body{background:#c6dfe7}
   text-shadow:0 0 20px currentColor;
 "></div>
 
-<!-- Hız butonları — oyun sırasında görünür -->
-<div id="speed-btns" style="display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-  z-index:20; display:none; gap:16px; flex-direction:row; align-items:center;">
-  <button id="btn-slow" style="
-    width:72px; height:72px; border-radius:50%; border:none;
-    background:rgba(255,170,0,0.18); border:2px solid rgba(255,170,0,0.45);
-    color:#ffaa00; font-size:28px; cursor:pointer;
-    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-    display:flex; align-items:center; justify-content:center;
-    transition:background 0.15s, transform 0.1s;
-    touch-action:none; user-select:none;
-  ">🐢</button>
-  <button id="btn-fast" style="
-    width:72px; height:72px; border-radius:50%; border:none;
-    background:rgba(0,255,200,0.18); border:2px solid rgba(0,255,200,0.45);
-    color:#00ffcc; font-size:28px; cursor:pointer;
-    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-    display:flex; align-items:center; justify-content:center;
-    transition:background 0.15s, transform 0.1s;
-    touch-action:none; user-select:none;
-  ">⚡</button>
-</div>
+<!-- Oyun sırasındaki eylem düğmeleri -->
+<div id="action-buttons"><button id="btn-jump" type="button">↥ ZIPLA</button><button id="btn-fast" type="button">⚡ HIZLAN</button></div>
+<div id="obstacle-warning" hidden>⚠️ Engel: şerit değiştir veya zıpla!</div>
 
 <script>
 // =====================================================================
@@ -1185,7 +1188,7 @@ let score = 0, lives = 3, combo = 0, correctCount = 0, wrongCount = 0;
 let bestScore = parseInt(localStorage.getItem('kk_best') || '0');
 let speed = 0.10, baseSpeed = 0.10;
 let playerX = 0, playerTargetX = 0;
-let playerY = 0, playerTargetY = 0;
+let jumpHeight = 0, jumpVelocity = 0;
 let shakeTimer = 0, shakeAmt = 0;
 let muted = false;
 let audioCtx = null;
@@ -1220,6 +1223,8 @@ const characterStyle = {
 let player, playerParts = {};
 let road, roadTiles = [];
 let gates = [];
+let obstacles = [], obstacleHits = 0, gateNumber = 0, displayedGate = null;
+let fourQueue = [];
 let particles = [];
 let bgObjects = [];
 let runCycle = 0;
@@ -1597,38 +1602,128 @@ function pickWordPair() {
   return pair;
 }
 
+
+/* Her üçüncü kapıda 2 şerit × 2 yükseklik: yalnızca bir seçenek doğru.
+   Dört seçenek de aynı sözcüğün yazılış varyasyonlarıdır. */
+const FOUR_CHALLENGES = [
+  {correct:'antrenman', wrong:['antreman','antraman','anterenman']},
+  {correct:'yalnız', wrong:['yanlız','yalnıs','yanlıs']},
+  {correct:'yanlış', wrong:['yalnış','yanlıs','yalnışş']},
+  {correct:'bir şey', wrong:['birşey','bişey','birşeyy']},
+  {correct:'herkes', wrong:['herkez','herkess','herkezs']},
+  {correct:'sürpriz', wrong:['süpriz','sürpiz','süprıs']},
+  {correct:'orijinal', wrong:['orjinal','orjinel','orijınal']},
+  {correct:'inisiyatif', wrong:['insiyatif','inisiyativ','inisiyatf']},
+  {correct:'şoför', wrong:['şöför','şofor','şöfor']},
+  {correct:'maalesef', wrong:['malesef','maaleseff','maalsef']},
+  {correct:'egzoz', wrong:['eksoz','egsoz','egzost']},
+  {correct:'laboratuvar', wrong:['labaratuvar','laboratuar','labratuvar']},
+  {correct:'art arda', wrong:['ardarda','artarda','ard arda']},
+  {correct:'fark etmek', wrong:['farketmek','farketmekk','fark etmak']},
+  {correct:'tıraş', wrong:['traş','tır aş','tıraşş']},
+  {correct:'poğaça', wrong:['poğça','pogaca','poğaşa']},
+  {correct:'pantolon', wrong:['pantalon','pantalun','pantolan']},
+  {correct:'profesör', wrong:['profösör','profosör','profesör r']},
+  {correct:'iddia', wrong:['iddaa','idia','iddiya']},
+  {correct:'kirpik', wrong:['kiprik','kirpık','kirbik']},
+  {correct:'kılavuz', wrong:['klavuz','kılavus','kılavuss']},
+  {correct:'eşofman', wrong:['eşortman','eşofmen','eşorfman']},
+  {correct:'kulüp', wrong:['klüp','külüp','kulub']},
+  {correct:'müsaade', wrong:['müsade','müsaadde','müsaadee']}
+];
+function shuffle(array) {
+  for(let i=array.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[array[i],array[j]]=[array[j],array[i]];}
+  return array;
+}
+function pickFourChallenge() {
+  if (!fourQueue.length) fourQueue = shuffle([...FOUR_CHALLENGES]);
+  return fourQueue.pop();
+}
 function spawnGate(zPos) {
-  const pair = pickWordPair();
-  const correctOnRight = Math.random() > 0.5;
-
+  gateNumber++;
+  const isFour = gateNumber % 3 === 0;
+  let words;
+  if (isFour) {
+    const question = pickFourChallenge();
+    words = shuffle([question.correct,...question.wrong].map(label=>({label,isCorrect:label===question.correct})));
+  } else {
+    const pair = pickWordPair();
+    words = shuffle([{label:pair.correct,isCorrect:true},{label:pair.wrong,isCorrect:false}]);
+  }
   const gateGroup = new THREE.Group();
-  gateGroup.position.z = zPos;
-
-  // Each road tile spans a complete lane: there is no empty bypass lane.
-  const makeFrame = (xPos, isCorrect, label) => {
-    const g = new THREE.Group();
-    const sprite = makeTextSprite(label);
-    const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.2,2.1),
-      new THREE.MeshBasicMaterial({map:sprite.material.map,side:THREE.DoubleSide}));
+  gateGroup.position.z=zPos;
+  const makeFrame = (x, y, label, upper) => {
+    const sprite=makeTextSprite(label);
+    const plane=new THREE.Mesh(
+      new THREE.PlaneGeometry(3.08,upper?1.03:2.05),
+      new THREE.MeshBasicMaterial({map:sprite.material.map,side:THREE.DoubleSide,transparent:true})
+    );
     sprite.material.dispose();
-    panel.rotation.x=-Math.PI/2;panel.position.set(xPos,.035,0);g.add(panel);
-    return {group:g,isCorrect,xPos,label,panel};
+    plane.position.set(x,y,0);
+    if (!upper) plane.rotation.x=-Math.PI/2;
+    gateGroup.add(plane);
+    if (upper) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(3.06,.075,.08),new THREE.MeshLambertMaterial({color:0x527c9e}));
+      bar.position.set(x,y-.56,0);gateGroup.add(bar);
+    }
+    return plane;
   };
-
-  const leftData = makeFrame(LANE_LEFT, !correctOnRight, correctOnRight ? pair.wrong : pair.correct);
-  const rightData = makeFrame(LANE_RIGHT, correctOnRight, correctOnRight ? pair.correct : pair.wrong);
-
-  gateGroup.add(leftData.group);
-  gateGroup.add(rightData.group);
-  scene.add(gateGroup);
-
-  gates.push({
-    group: gateGroup,
-    left: leftData,
-    right: rightData,
-    passed: false,
-    zPos
+  words.forEach((word,index)=>{
+    const upper=isFour && index<2;
+    makeFrame(index%2===0?LANE_LEFT:LANE_RIGHT,upper?2.7:.035,word.label,upper);
   });
+  scene.add(gateGroup);
+  gates.push({group:gateGroup,options:words,isFour,passed:false,number:gateNumber,preferHigh:false});
+  // Bir şeridi daima açık bırakır; engeller kelime kapısının arasında yer alır.
+  if (gateNumber>=4 && gateNumber%2===0) spawnObstacle(zPos + GATE_SPACING*.5);
+}
+function spawnObstacle(z) {
+  const lane=Math.random()<.5?0:1, x=lane===0?LANE_LEFT:LANE_RIGHT;
+  const group=new THREE.Group();group.position.z=z;
+  box(group,1.35,.75,.55,0xeb8b3d,x,.42,0);
+  for (let side of [-1,1]) {
+    box(group,.22,.80,.60,0xf8efcf,x+side*.48,.45,0);
+    box(group,.23,.12,.64,0x563c29,x+side*.48,.45,.01);
+  }
+  box(group,1.55,.12,.75,0x503a2d,x,.08,.08);
+  scene.add(group);obstacles.push({group,lane,passed:false});
+}
+function renderChoices(gate) {
+  if (displayedGate!==gate) {
+    displayedGate=gate;
+    const area=document.getElementById('choices');
+    area.replaceChildren();
+    area.classList.toggle('four-choices',!!gate?.isFour);
+    if(gate) {
+      for(let i=0;i<gate.options.length;i++){
+        const btn=document.createElement('button');
+        btn.type='button';btn.textContent=gate.options[i].label;
+        btn.className=gate.isFour?(i<2?'upper-option':'lower-option'):'';
+        btn.addEventListener('click',()=>{
+          if(gameState!=='playing')return;
+          currentLane=i%2;playerTargetX=LANES[currentLane];
+          if(gate.isFour){gate.preferHigh=i<2;if(i<2) maybeAutoJump(gate);}
+          updateChoiceSelection(gate);
+        });
+        area.appendChild(btn);
+      }
+    }
+  }
+  document.getElementById('choices').hidden=!gate;
+  document.querySelector('.question-label').textContent=gate?.isFour
+    ? '4 SEÇENEK · ÜST = ZIPLA · ALT = KOŞ'
+    : 'DOĞRU YAZIM HANGİSİ?';
+  if(gate)updateChoiceSelection(gate);
+}
+function updateChoiceSelection(gate) {
+  const chosenIndex=gate.isFour ? ((gate.preferHigh || jumpHeight>.7)?currentLane:currentLane+2) : currentLane;
+  [...document.getElementById('choices').children].forEach((el,i)=>el.classList.toggle('selected',i===chosenIndex));
+}
+function maybeAutoJump(gate) {
+  if(!gate?.isFour || !gate.preferHigh || gameState!=='playing')return;
+  const distance=player.position.z-gate.group.position.z;
+  // Zıplama tepesinin seçim çizgisine denk gelmesi için hız uyarlamalı zamanlama.
+  if(distance>0 && distance<=Math.max(3.2,speed*60*.41) && jumpHeight===0)jump();
 }
 
 function makeTextSprite(text) {
@@ -1736,6 +1831,16 @@ function handleCorrect() {
   updateHUD();
 }
 
+function handleObstacleHit() {
+  obstacleHits++;
+  lives--;combo=0;
+  playWrong();flashScreen('rgba(255,85,12,.46)',280);
+  shakeTimer=.35;shakeAmt=.18;
+  showComboMsg('⚠️ Engele çarptın!');
+  updateHUD();
+  if(lives<=0)endGame();
+}
+
 function handleWrong() {
   score = Math.max(0, score - 5);
   lives--;
@@ -1755,12 +1860,15 @@ function handleWrong() {
 function endGame() {
   gameState = 'gameover';
   document.getElementById('choice-hud').hidden = true;
+  document.getElementById('action-buttons').style.display='none';
+  document.getElementById('obstacle-warning').hidden=true;
   stopMusic();
   if (score > bestScore) { bestScore = score; localStorage.setItem('kk_best', bestScore); }
 
   document.getElementById('final-score').textContent = score;
   document.getElementById('final-correct').textContent = correctCount;
   document.getElementById('final-wrong').textContent = wrongCount;
+  document.getElementById('final-hits').textContent = obstacleHits;
   document.getElementById('best-score-val').textContent = bestScore;
 
   hudEl.style.display = 'none';
@@ -1786,116 +1894,71 @@ function endGame() {
 }
 
 // ---- Controls ----
-const LANES = [LANE_LEFT, LANE_RIGHT];
-let currentLane = 0;
-let speedBoost = 0;
-const BOOST_AMOUNT = 0.12;
-const MAX_BOOST_SPEED = 0.42;
-
-function speedUp()   { speedBoost = 1; }
-function resetBoost(){ speedBoost = 0; }
-
-function moveLeft() {
-  if (gameState !== 'playing') return;
-  if (currentLane > 0) currentLane--;
-  playerTargetX = LANES[currentLane];
+const LANES=[LANE_LEFT,LANE_RIGHT];
+let currentLane=0,speedBoost=0;
+const BOOST_AMOUNT=.12,MAX_BOOST_SPEED=.42;
+function speedUp(){if(gameState==='playing')speedBoost=1;}
+function resetBoost(){speedBoost=0;}
+function jump(){
+  if(gameState!=='playing'||jumpHeight>0||jumpVelocity>0)return;
+  jumpVelocity=8.5;
+  playTone(440,'triangle',.07,.15);
 }
-function moveRight() {
-  if (gameState !== 'playing') return;
-  if (currentLane < LANES.length - 1) currentLane++;
-  playerTargetX = LANES[currentLane];
-}
-
-// Klavye: ←/→ şerit, ↑/boşluk basılı tut = hızlan
-document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') moveLeft();
-  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
-  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') {
-    e.preventDefault(); speedUp();
-  }
+function moveLeft(){if(gameState==='playing'){currentLane=0;playerTargetX=LANES[0];}}
+function moveRight(){if(gameState==='playing'){currentLane=1;playerTargetX=LANES[1];}}
+document.addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight','ArrowUp',' ','Shift'].includes(e.key))e.preventDefault();
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')moveLeft();
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')moveRight();
+  if((e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key===' ')&&!e.repeat)jump();
+  if(e.key==='Shift')speedUp();
 });
-document.addEventListener('keyup', e => {
-  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') resetBoost();
-});
-
-function isUiControl(target) {
-  return target.closest('button') || target.closest('#character-customizer') || target.id === 'mute-btn';
+document.addEventListener('keyup',e=>{if(e.key==='Shift')resetBoost();});
+window.addEventListener('blur',resetBoost);
+function isUiControl(target){return !!target.closest('button,#character-customizer');}
+function setLaneFromClientX(x) {
+  if(gameState!=='playing')return;
+  currentLane=x<window.innerWidth/2?0:1;
+  playerTargetX=LANES[currentLane];
 }
-
-function setLaneFromClientX(clientX) {
-  if (gameState !== 'playing') return;
-  currentLane = clientX < window.innerWidth / 2 ? 0 : 1;
-  playerTargetX = LANES[currentLane];
-}
-
-document.addEventListener('pointerdown', e => {
-  if (isUiControl(e.target) || gameState !== 'playing') return;
-  e.preventDefault();
-  dragControlActive = true;
-  setLaneFromClientX(e.clientX);
-}, { passive: false });
-
-document.addEventListener('pointermove', e => {
-  if (!dragControlActive || gameState !== 'playing') return;
-  e.preventDefault();
-  setLaneFromClientX(e.clientX);
-}, { passive: false });
-
-function stopDragControl() {
-  dragControlActive = false;
-  resetBoost();
-}
-
-document.addEventListener('pointerup', stopDragControl);
-document.addEventListener('pointercancel', stopDragControl);
-
-// Buton event listener'ları — onclick attribute yerine JS ile bağla
-document.addEventListener('DOMContentLoaded', () => {});
-
-function bindCustomizer() {
-  document.querySelectorAll('.option-buttons').forEach(group => {
-    const option = group.dataset.option;
-    group.querySelectorAll('.choice-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.value === characterStyle[option]);
-      btn.addEventListener('click', () => {
-        characterStyle[option] = btn.dataset.value;
-        localStorage.setItem(`kk_${option}`, btn.dataset.value);
-        group.querySelectorAll('.choice-btn').forEach(item => item.classList.remove('active'));
+document.addEventListener('pointerdown',e=>{
+  if(isUiControl(e.target)||gameState!=='playing')return;
+  e.preventDefault();dragControlActive=true;setLaneFromClientX(e.clientX);
+},{passive:false});
+document.addEventListener('pointermove',e=>{
+  if(!dragControlActive||gameState!=='playing')return;
+  e.preventDefault();setLaneFromClientX(e.clientX);
+},{passive:false});
+function stopDragControl(){dragControlActive=false;}
+document.addEventListener('pointerup',stopDragControl);
+document.addEventListener('pointercancel',stopDragControl);
+function bindCustomizer(){
+  document.querySelectorAll('.option-buttons').forEach(group=>{
+    const option=group.dataset.option;
+    group.querySelectorAll('.choice-btn').forEach(btn=>{
+      btn.classList.toggle('active',btn.dataset.value===characterStyle[option]);
+      btn.addEventListener('click',()=>{
+        characterStyle[option]=btn.dataset.value;
+        localStorage.setItem('kk_'+option,btn.dataset.value);
+        group.querySelectorAll('.choice-btn').forEach(item=>item.classList.remove('active'));
         btn.classList.add('active');
-        if (THREE && scene) buildPlayer();
+        if(THREE&&scene)buildPlayer();
       });
     });
   });
 }
-
-function bindButtons() {
-  const btnStart = document.getElementById('btn-start');
-  const btnRestart = document.getElementById('btn-restart');
-  const btnMenu = document.getElementById('btn-menu');
-  const muteBtn = document.getElementById('mute-btn');
-
+function bindButtons(){
   bindCustomizer();
-  document.getElementById('left-choice').onclick = () => {if(gameState==='playing'){currentLane=0;playerTargetX=LANES[0];}};
-  document.getElementById('right-choice').onclick = () => {if(gameState==='playing'){currentLane=1;playerTargetX=LANES[1];}};
-
-  if (btnStart) {
-    btnStart.addEventListener('click', startGame);
-    btnStart.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
-  }
-  if (btnRestart) {
-    btnRestart.addEventListener('click', restartGame);
-    btnRestart.addEventListener('touchend', e => { e.preventDefault(); restartGame(); });
-  }
-  if (btnMenu) {
-    btnMenu.addEventListener('click', showStart);
-    btnMenu.addEventListener('touchend', e => { e.preventDefault(); showStart(); });
-  }
-  if (muteBtn) {
-    muteBtn.addEventListener('click', toggleMute);
-    muteBtn.addEventListener('touchend', e => { e.preventDefault(); toggleMute(); });
-  }
+  document.getElementById('btn-start').addEventListener('click',startGame);
+  document.getElementById('btn-restart').addEventListener('click',restartGame);
+  document.getElementById('btn-menu').addEventListener('click',showStart);
+  document.getElementById('mute-btn').addEventListener('click',toggleMute);
+  document.getElementById('btn-jump').addEventListener('pointerdown',e=>{e.preventDefault();jump();});
+  const fast=document.getElementById('btn-fast');
+  fast.addEventListener('pointerdown',e=>{e.preventDefault();speedUp();fast.setPointerCapture?.(e.pointerId);});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(type=>fast.addEventListener(type,resetBoost));
 }
-
+// ---- Game Loop ----
 // ---- Game Loop ----
 let lastTime = 0;
 function loop(ts) {
@@ -1926,10 +1989,17 @@ function loop(ts) {
     if (b.position.z > 24) b.position.z -= 108;
   });
 
-  // Move gates
-  gates.forEach(gate => {
-    gate.group.position.z += speed * dt * 60;
-  });
+  // Move word gates and hazards.
+  gates.forEach(gate=>{gate.group.position.z+=speed*dt*60;});
+  obstacles.forEach(hazard=>{hazard.group.position.z+=speed*dt*60;});
+
+  // Frame-rate-independent jump arc; resolve it before collision checks.
+  if(jumpVelocity!==0||jumpHeight>0){
+    jumpHeight+=jumpVelocity*dt;
+    jumpVelocity-=18*dt;
+    if(jumpHeight<=0){jumpHeight=0;jumpVelocity=0;}
+  }
+  player.position.y=jumpHeight;
 
   // Spawn gates
   nextGateZ += speed * dt * 60;
@@ -1938,29 +2008,36 @@ function loop(ts) {
     nextGateZ = -GATE_SPACING;
   }
 
-  // Crossing is always scored once. The logical selected lane is authoritative,
-  // even during the short visual transition between lanes.
-  gates.forEach(gate => {
-    if (gameState !== 'playing' || gate.passed || gate.group.position.z < player.position.z) return;
-    gate.passed = true;
-    const chosen = currentLane === 0 ? gate.left : gate.right;
-    player.position.x = playerTargetX = LANES[currentLane];
-    chosen.isCorrect ? handleCorrect() : handleWrong();
-    const correct = gate.left.isCorrect ? gate.left.label : gate.right.label;
-    const feedback = document.getElementById('answer-feedback');
-    feedback.textContent = chosen.isCorrect ? '✓ ' + correct : 'Doğru yazım: ' + correct;
-    feedback.className = chosen.isCorrect ? 'correct' : 'wrong';
+  // Hazards are between gates; a clear lane or a well-timed jump is always possible.
+  const warning=document.getElementById('obstacle-warning');
+  warning.hidden=!obstacles.some(h=>!h.passed&&h.group.position.z<player.position.z
+    &&h.group.position.z>player.position.z-16);
+  obstacles.forEach(h=>{
+    if(gameState!=='playing'||h.passed||h.group.position.z<player.position.z)return;
+    h.passed=true;
+    if(currentLane===h.lane && jumpHeight<.85)handleObstacleHit();
   });
-  const upcoming = gates.find(g=>!g.passed);
-  document.getElementById('choices').hidden = !upcoming;
-  if(upcoming) {
-    ['left-choice','right-choice'].forEach((id,i)=>{
-      const el=document.getElementById(id);
-      el.textContent=(i===0?'← ':'')+(i===0?upcoming.left.label:upcoming.right.label)+(i===1?' →':'');
-      el.classList.toggle('selected',currentLane===i);
-    });
+  for(let i=obstacles.length-1;i>=0;i--){
+    if(obstacles[i].group.position.z>15){disposeObject(obstacles[i].group);obstacles.splice(i,1);}
   }
 
+  // Score the actually crossed square of the 2×1 or 2×2 choice grid.
+  gates.forEach(gate=>{
+    if(gameState!=='playing'||gate.passed||gate.group.position.z<player.position.z)return;
+    gate.passed=true;
+    const row=gate.isFour && jumpHeight>.7?0:gate.isFour?1:0;
+    const index=gate.isFour?row*2+currentLane:currentLane;
+    const chosen=gate.options[index];
+    player.position.x=playerTargetX=LANES[currentLane];
+    chosen.isCorrect?handleCorrect():handleWrong();
+    const correct=gate.options.find(w=>w.isCorrect).label;
+    const feedback=document.getElementById('answer-feedback');
+    feedback.textContent=chosen.isCorrect?'✓ '+correct:'Doğru yazım: '+correct;
+    feedback.className=chosen.isCorrect?'correct':'wrong';
+  });
+  const upcoming=gates.find(g=>!g.passed);
+  renderChoices(upcoming||null);
+  maybeAutoJump(upcoming);
   // Remove old gates
   for (let i = gates.length - 1; i >= 0; i--) {
     if (gates[i].group.position.z > 15) {
@@ -1987,7 +2064,6 @@ function loop(ts) {
 
   // Player movement
   player.position.x += (playerTargetX - player.position.x) * 0.18;
-  player.position.y += (playerTargetY - player.position.y) * 0.2;
 
   // A full gait: hip swing, knee recovery, bent elbows, torso bob and lane lean.
   runCycle += dt * (9 + speed * 12);
@@ -1998,9 +2074,10 @@ function loop(ts) {
     playerParts['arm'+side].rotation.x=-stride*.50;
     playerParts['elbow'+side].rotation.x=-1.15+stride*.12;
   });
-  playerParts.rig.position.y=.035+Math.abs(Math.sin(runCycle))*.06;
+  playerParts.rig.position.y=.035+(jumpHeight>0?0:Math.abs(Math.sin(runCycle))*.06);
   playerParts.rig.rotation.z=Math.sin(runCycle)*.028+(playerTargetX-player.position.x)*.065;
   playerParts.head.rotation.y=Math.sin(runCycle)*.025;
+  if(jumpHeight>0){playerParts.legL.rotation.x=-.35;playerParts.legR.rotation.x=.48;}
 
   // Camera shake
   let shakeX = 0, shakeY = 0;
@@ -2034,16 +2111,18 @@ function startGame() {
 
   // Reset state
   score = 0; lives = 3; combo = 0; correctCount = 0; wrongCount = 0;
-  speed = baseSpeed; runCycle = 0;
+  speed = baseSpeed; runCycle = 0; jumpHeight=0; jumpVelocity=0;
   currentLane = 0; playerX = LANE_LEFT; playerTargetX = LANE_LEFT; speedBoost = 0; dragControlActive = false;
   shakeTimer = 0;
   nextGateZ = -GATE_SPACING;
   pendingPairs = [];
-  lastWordIndex = -1;
+  lastWordIndex = -1;gateNumber=0;obstacleHits=0;fourQueue=[];displayedGate=null;
 
   // Clear gates
   gates.forEach(g => disposeObject(g.group));
   gates.length = 0;
+  obstacles.forEach(h=>disposeObject(h.group));obstacles.length=0;
+  document.getElementById('choices').replaceChildren();
   particles.forEach(p => disposeObject(p.mesh));
   particles.length = 0;
 
@@ -2053,7 +2132,9 @@ function startGame() {
   gameoverScreen.classList.add('hidden');
   hudEl.style.display = 'flex';
   touchHint.style.display = 'block';
-  touchHint.textContent = '← → veya ekranın sol / sağ yarısı · ↑ hızlan';
+  touchHint.textContent = 'Şerit: ← → veya dokun · ↑ zıpla · Shift hız';
+  document.getElementById('action-buttons').style.display='flex';
+  document.getElementById('obstacle-warning').hidden=true;
 
   spawnGate(-30);
   document.getElementById('answer-feedback').textContent = '';
@@ -2076,6 +2157,8 @@ function showStart() {
   stopMusic();
   startScreen.classList.remove('hidden');
   gameState = 'menu';
+  document.getElementById('action-buttons').style.display='none';
+  document.getElementById('obstacle-warning').hidden=true;
   document.getElementById('choice-hud').hidden = true;
 }
 
