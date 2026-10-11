@@ -31,4 +31,8 @@ Bu sürümde oyun içi reklam veya uygulama içi satın alma **eklenmemiştir**;
 
 ## iPhone ve mobil ses
 
-Safari'de ses motoru oyunu başlatma dokunuşuyla etkinleştirilir. Destekleyen cihazlarda müzik için `navigator.audioSession.type = 'playback'` kullanılır. Ses açma/kapatma düğmesi puan-can göstergesinin yanındadır. Müzik duyulmuyorsa medya ses düzeyini kontrol edin; Safari/iOS sürümüne ve sessiz mod ayarına bağlı farklar olabilir. Mobil sürüm etiketi: **1.2**.
+Safari'de ses motoru oyunu başlatma dokunuşuyla etkinleştirilir. Destekleyen cihazlarda müzik için `navigator.audioSession.type = 'playback'` kullanılır. Ses açma/kapatma düğmesi puan-can göstergesinin yanındadır. Müzik duyulmuyorsa medya ses düzeyini kontrol edin; Safari/iOS sürümüne ve sessiz mod ayarına bağlı farklar olabilir. Mobil sürüm etiketi: **1.4**.
+
+## Cevap değerlendirmesi (1.4)
+
+Bir sözcük kartına dokunarak cevap verildiğinde oyunda tam olarak o seçenek değerlendirilir. Dört seçenekli sorularda özellikle üstteki sözcüğün zıplama animasyonu gecikse bile seçimin yanlış sayılması önlenmiştir. Yalnızca koşarak veya zıplayarak geçişte fiilî şerit/yükseklik kullanılır. Önceki turun geri bildirimi 1,5 saniye sonra temizlenir; sonraki sorunun cevabıymış gibi kalmaz.
