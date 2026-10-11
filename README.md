@@ -14,9 +14,9 @@ Türkçe yazım kurallarını çalıştıran, mahalle sokaklarında geçen iki �
 
 | Eylem | Bilgisayar | Telefon / tablet |
 | --- | --- | --- |
-| Şerit değiştir | Sol / sağ ok veya A / D | Ekranın sol / sağ tarafına dokun ya da kelimeyi seç |
-| Zıpla | Yukarı ok, W veya Boşluk | **ZIPLA** düğmesi |
-| Hızlan | Shift (basılı tut) | **HIZLAN** düğmesi (basılı tut) |
+| Şerit değiştir | Sol / sağ ok veya A / D | Ekranın sol / sağ tarafına dokun veya sağa / sola kaydır |
+| Zıpla | Yukarı ok, W veya Boşluk | **ZIPLA** düğmesi veya ekranın üzerinde yukarı kaydırma |
+| Hızlan | Shift (basılı tut) | **HIZLAN** düğmesine basılı tut, ya da kısa dokunarak 2,5 saniyelik turbo başlat |
 | Üstteki kelimeyi seç | Şeride geç ve doğru zamanda zıpla | Üst kelime kartına dokun: zıplama geçişe yakın otomatik zamanlanır |
 
 > Dört seçenekli turda üstteki kelimeye tıklamak otomatik zıplamayı hazırlar; manuel zıplama da kullanılabilir.
@@ -28,3 +28,7 @@ Türkçe yazım kurallarını çalıştıran, mahalle sokaklarında geçen iki �
 - Soru havuzu `WORD_PAIRS`, dört seçenekli özel sorular `FOUR_CHALLENGES` dizisinde yer alır.
 
 Bu sürümde oyun içi reklam veya uygulama içi satın alma **eklenmemiştir**; Google Play yayını ayrı bir paketleme, test ve mağaza süreci gerektirir.
+
+## iPhone ve mobil ses
+
+Safari'de ses motoru oyunu başlatma dokunuşuyla etkinleştirilir. Destekleyen cihazlarda müzik için `navigator.audioSession.type = 'playback'` kullanılır. Ses açma/kapatma düğmesi puan-can göstergesinin yanındadır. Müzik duyulmuyorsa medya ses düzeyini kontrol edin; Safari/iOS sürümüne ve sessiz mod ayarına bağlı farklar olabilir. Mobil sürüm etiketi: **1.2**.
