@@ -358,7 +358,7 @@ html,body{background:#c6dfe7}
     </div>
   </div>
   <button class="btn btn-primary" id="btn-start">BAŞLA</button>
-  <div class="screen-sub" style="font-size:12px;margin:2px auto;">Mobil sürüm 1.3 · Ekrana basılı tutarak hızlan.</div>
+  <div class="screen-sub" style="font-size:12px;margin:2px auto;">Mobil sürüm 1.4 · Yazım sorularında cevap kontrolü iyileştirildi.</div>
   <div class="screen-sub" style="font-size:clamp(11px,2.5vw,14px); margin-top:4px;">
     📱 Ekrana basılı tut: hızlan · Sağa/sola kaydır: şerit · Yukarı kaydır: zıpla
   </div>
@@ -1234,6 +1234,7 @@ let player, playerParts = {};
 let road, roadTiles = [];
 let gates = [];
 let obstacles = [], obstacleHits = 0, gateNumber = 0, displayedGate = null;
+let feedbackClearTimer = null;
 let fourQueue = [];
 let particles = [];
 let bgObjects = [];
@@ -1725,7 +1726,10 @@ function spawnGate(zPos) {
     makeFrame(index%2===0?LANE_LEFT:LANE_RIGHT,upper?2.7:.035,word.label,upper);
   });
   scene.add(gateGroup);
-  gates.push({group:gateGroup,options:words,isFour,passed:false,number:gateNumber,preferHigh:false});
+  gates.push({
+    group:gateGroup, options:words, isFour, passed:false, number:gateNumber,
+    preferHigh:false, selectedIndex:null
+  });
   // Bir şeridi daima açık bırakır; engeller kelime kapısının arasında yer alır.
   if (gateNumber>=4 && gateNumber%2===0) spawnObstacle(zPos + GATE_SPACING*.5);
 }
@@ -1753,7 +1757,11 @@ function renderChoices(gate) {
         btn.className=gate.isFour?(i<2?'upper-option':'lower-option'):'';
         btn.addEventListener('click',()=>{
           if(gameState!=='playing')return;
-          currentLane=i%2;playerTargetX=LANES[currentLane];
+          // Store the exact option explicitly selected by the student.
+          // Formerly a correct upper answer could be marked wrong if the
+          // jump animation had not reached its height threshold in time.
+          setChosenLane(i%2);
+          gate.selectedIndex=i;
           if(gate.isFour){gate.preferHigh=i<2;if(i<2) maybeAutoJump(gate);}
           updateChoiceSelection(gate);
         });
@@ -1767,9 +1775,29 @@ function renderChoices(gate) {
     : 'DOĞRU YAZIM HANGİSİ?';
   if(gate)updateChoiceSelection(gate);
 }
+function getChoiceIndex(gate, lane=currentLane, height=jumpHeight) {
+  // UI selection is authoritative; running/jumping alone uses lane and height.
+  if(Number.isInteger(gate.selectedIndex) &&
+     gate.selectedIndex>=0 && gate.selectedIndex<gate.options.length){
+    return gate.selectedIndex;
+  }
+  return gate.isFour ? (height>.7?lane:lane+2) : lane;
+}
 function updateChoiceSelection(gate) {
-  const chosenIndex=gate.isFour ? ((gate.preferHigh || jumpHeight>.7)?currentLane:currentLane+2) : currentLane;
+  const chosenIndex=getChoiceIndex(gate);
   [...document.getElementById('choices').children].forEach((el,i)=>el.classList.toggle('selected',i===chosenIndex));
+}
+function showAnswerFeedback(isCorrect,correct){
+  const feedback=document.getElementById('answer-feedback');
+  if(feedbackClearTimer!==null)clearTimeout(feedbackClearTimer);
+  feedback.textContent=isCorrect
+    ? 'Önceki tur ✓ '+correct
+    : 'Önceki tur ✗ Doğru yazım: '+correct;
+  feedback.className=isCorrect?'correct':'wrong';
+  feedbackClearTimer=setTimeout(()=>{
+    feedback.textContent='';
+    feedbackClearTimer=null;
+  },1500);
 }
 function maybeAutoJump(gate) {
   if(!gate?.isFour || !gate.preferHigh || gameState!=='playing')return;
@@ -1912,6 +1940,7 @@ function handleWrong() {
 function endGame() {
   gameState = 'gameover';
   document.getElementById('choice-hud').hidden = true;
+  if(feedbackClearTimer!==null){clearTimeout(feedbackClearTimer);feedbackClearTimer=null;}
   document.getElementById('action-buttons').style.display='none';
   resetBoost();turboRemaining=0;updateBoostAppearance();
   document.getElementById('obstacle-warning').hidden=true;
@@ -1979,8 +2008,21 @@ function jump(){
   jumpVelocity=8.5;
   playTone(440,'triangle',.07,.15);
 }
-function moveLeft(){if(gameState==='playing'){currentLane=0;playerTargetX=LANES[0];}}
-function moveRight(){if(gameState==='playing'){currentLane=1;playerTargetX=LANES[1];}}
+function setChosenLane(lane){
+  if(gameState!=='playing')return;
+  currentLane=lane;
+  playerTargetX=LANES[lane];
+  // After touching a word card, a later swipe must change the selected column,
+  // without silently leaving a previously selected answer locked in place.
+  const upcoming=gates.find(g=>!g.passed);
+  if(upcoming && Number.isInteger(upcoming.selectedIndex)){
+    const upper=upcoming.isFour && upcoming.selectedIndex<2;
+    upcoming.selectedIndex=upcoming.isFour?(upper?lane:lane+2):lane;
+    upcoming.preferHigh=upper;
+  }
+}
+function moveLeft(){setChosenLane(0);}
+function moveRight(){setChosenLane(1);}
 document.addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp',' ','Shift'].includes(e.key))e.preventDefault();
   if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')moveLeft();
@@ -1995,9 +2037,7 @@ window.addEventListener('blur',()=>{
 });
 function isUiControl(target){return !!target.closest('button,#character-customizer');}
 function setLaneFromClientX(x){
-  if(gameState!=='playing')return;
-  currentLane=x<window.innerWidth/2?0:1;
-  playerTargetX=LANES[currentLane];
+  setChosenLane(x<window.innerWidth/2?0:1);
 }
 // Upward swipe jumps; horizontal swipe selects a lane; short tap retains tap-to-lane.
 document.addEventListener('pointerdown',e=>{
@@ -2151,15 +2191,11 @@ function loop(ts) {
   gates.forEach(gate=>{
     if(gameState!=='playing'||gate.passed||gate.group.position.z<player.position.z)return;
     gate.passed=true;
-    const row=gate.isFour && jumpHeight>.7?0:gate.isFour?1:0;
-    const index=gate.isFour?row*2+currentLane:currentLane;
-    const chosen=gate.options[index];
+    const chosen=gate.options[getChoiceIndex(gate)];
     player.position.x=playerTargetX=LANES[currentLane];
     chosen.isCorrect?handleCorrect():handleWrong();
     const correct=gate.options.find(w=>w.isCorrect).label;
-    const feedback=document.getElementById('answer-feedback');
-    feedback.textContent=chosen.isCorrect?'✓ '+correct:'Doğru yazım: '+correct;
-    feedback.className=chosen.isCorrect?'correct':'wrong';
+    showAnswerFeedback(chosen.isCorrect,correct);
   });
   const upcoming=gates.find(g=>!g.passed);
   renderChoices(upcoming||null);
@@ -2252,6 +2288,8 @@ function startGame() {
   gates.length = 0;
   obstacles.forEach(h=>disposeObject(h.group));obstacles.length=0;
   document.getElementById('choices').replaceChildren();
+  if(feedbackClearTimer!==null){clearTimeout(feedbackClearTimer);feedbackClearTimer=null;}
+  document.getElementById('answer-feedback').textContent='';
   particles.forEach(p => disposeObject(p.mesh));
   particles.length = 0;
 
